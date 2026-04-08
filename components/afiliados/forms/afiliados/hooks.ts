@@ -23,7 +23,8 @@ export function useAfiliadosForm() {
       sexo: "M",
       lugar_id: 0,
       lider_id: null,
-      politica: "",
+      politica_id: 0 as any,
+      sub_politica_id: 0 as any,
       no_padron: "",
     },
   });
@@ -34,7 +35,7 @@ export function useInicializarFormulario(
   afiliadoAEditar: AfiliadoType | null | undefined,
   liderPredefinidoId: string | null | undefined,
   lideres: Lider[],
-  methods: UseFormReturn<AfiliadoFormData>,
+  methods: any,
   setLiderSearch: (val: string) => void,
   setShowLiderSuggestions: (val: boolean) => void,
   isFirstMember: boolean = false,
@@ -52,7 +53,8 @@ export function useInicializarFormulario(
           religion_otra: "",
           lugar_id: afiliadoAEditar.lugar_id,
           no_padron: afiliadoAEditar.no_padron || "",
-          politica: afiliadoAEditar.politica || "",
+          politica_id: (afiliadoAEditar as any).politica_id || null,
+          sub_politica_id: (afiliadoAEditar as any).sub_politica_id || null,
         } as AfiliadoFormData);
 
         const currentLider = lideres.find(
@@ -78,7 +80,8 @@ export function useInicializarFormulario(
           sexo: "M",
           lugar_id: 0,
           no_padron: "",
-          politica: "",
+          politica_id: 0 as any,
+          sub_politica_id: 0 as any,
           religion: "",
           religion_otra: "",
         });

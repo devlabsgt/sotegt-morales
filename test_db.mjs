@@ -7,7 +7,7 @@ async function test() {
   const { data, error } = await supabase.from('info_perfil').select('*').limit(1);
   console.log("info_perfil columns:", data ? Object.keys(data[0]) : error);
 
-  const { data: aData, error: aError } = await supabase.from('afiliados').select('lider_id, lugares_clm(nombre), info_perfil(user_id, nombres, apellidos)').limit(1);
+  const { data: aData, error: aError } = await supabase.from('afiliados').select('lider_id, lugares(nombre), info_perfil(user_id, nombres, apellidos)').limit(1);
   console.log("FK test:", JSON.stringify(aData), aError);
 }
 

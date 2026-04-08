@@ -15,6 +15,7 @@ import { Dialog, TransitionChild, DialogPanel } from "@headlessui/react";
 import { Users, BarChart3, X, UserPlus, Search, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { obtenerAfiliadosAction } from "./actions/afiliados";
+import { obtenerConfiguracionAction } from "../dashboard/actions/configuracion";
 
 interface Props {
   isOpen: boolean;
@@ -46,6 +47,11 @@ export default function Celula({
     enabled: isOpen && !!lider?.id,
   });
 
+  const { data: config } = useQuery({
+    queryKey: ["config_sistema"],
+    queryFn: () => obtenerConfiguracionAction(),
+  });
+
   if (!lider) return null;
 
   const afiliadosFiltrados =
@@ -59,7 +65,7 @@ export default function Celula({
       : afiliadosDelLider;
 
   const totalEnGrupo = afiliadosDelLider.length;
-  const objetivo = 15;
+  const objetivo = config?.meta_por_lider || 0;
   const progreso = Math.min((totalEnGrupo / objetivo) * 100, 100);
 
   let mensaje = "";
@@ -71,15 +77,19 @@ export default function Celula({
     colorBarra = "bg-gray-300";
   } else if (totalEnGrupo === 1) {
     mensaje = `🎉 ¡Líder registrado! Añade a tus familiares y amigos.`;
-  } else if (totalEnGrupo <= 10) {
+  } else if (progreso <= 25) {
+    mensaje = `🌱 ¡Apenas comenzamos! Somos ${totalEnGrupo} de ${objetivo}.`;
+    colorBarra = "bg-blue-600";
+    gifUrl = "/gif/afiliados/gif1.gif";
+  } else if (progreso <= 50) {
     mensaje = `🚀 ¡Vamos por buen camino! Somos ${totalEnGrupo} de ${objetivo}.`;
     colorBarra = "bg-yellow-600";
     gifUrl = "/gif/afiliados/gif2.gif";
-  } else if (totalEnGrupo < 15) {
+  } else if (progreso < 100) {
     mensaje = `😎 ¡Casi llegamos a la meta! Somos ${totalEnGrupo} de ${objetivo}.`;
     colorBarra = "bg-purple-600";
     gifUrl = "/gif/afiliados/gif3.gif";
-  } else if (totalEnGrupo >= 15) {
+  } else if (progreso >= 100) {
     mensaje = `🏆 ¡Objetivo alcanzado! ${totalEnGrupo} miembros. ¡Excelente trabajo!`;
     colorBarra = "bg-green-500";
     gifUrl = "/gif/afiliados/gif5.gif";

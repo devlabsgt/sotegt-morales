@@ -1,23 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Plus } from "lucide-react";
-import { motion } from "framer-motion";
+import { X, Plus, Loader2, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { toast } from "react-toastify";
 
-import { guardarAfiliadoAction } from "./actions";
-import { POLITICAS, type AfiliadoFormData, type Afiliado } from "./schemas";
+import { guardarAfiliadoAction, buscarDpiEnPadronAction, buscarDpiEnAfiliadosAction } from "./actions";
+import { type AfiliadoFormData, type Afiliado } from "./schemas";
 import {
   useAfiliadosForm,
   useInicializarFormulario,
   useBuscadorLider,
 } from "./hooks";
+import useUserData from "@/hooks/sesion/useUserData";
+import {
+  obtenerPoliticasAction,
+  obtenerSubPoliticasAction,
+  crearSubPoliticaAction,
+  obtenerLugaresAction,
+  crearLugarAction,
+  type Politica,
+  type SubPolitica,
+  type Lugar,
+} from "./catalogos";
 
-type Lugar = { id: number; nombre: string };
-type Lider = {
+type LiderType = {
   id: string;
   nombres: string;
   apellidos: string;
@@ -31,10 +41,129 @@ interface Props {
   afiliadoAEditar?: Afiliado | null;
   liderPredefinidoId?: string | null;
   lugares: Lugar[];
-  lideres: Lider[];
+  lideres: LiderType[];
   afiliados: Afiliado[];
   isFirstMember?: boolean;
-  datosLider?: Lider | null;
+  datosLider?: LiderType | null;
+}
+
+function ComboSearch({
+  placeholder,
+  items,
+  value,
+  onSelect,
+  onCreateNew,
+  disabled = false,
+  loading = false,
+}: {
+  placeholder: string;
+  items: { id: number; nombre: string }[];
+  value: number | null | undefined;
+  onSelect: (id: number) => void;
+  onCreateNew?: (nombre: string) => Promise<void>;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = items.find((i) => i.id === value);
+
+  useEffect(() => {
+    if (selected) setQuery(selected.nombre);
+    else setQuery("");
+  }, [value, selected]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = items.filter((i) =>
+    i.nombre.toLowerCase().includes(query.toLowerCase())
+  );
+  const exactMatch = items.find(
+    (i) => i.nombre.toLowerCase() === query.trim().toLowerCase()
+  );
+  const canCreate = onCreateNew && query.trim().length > 1 && !exactMatch;
+
+  const handleCreate = async () => {
+    if (!onCreateNew) return;
+    setCreating(true);
+    await onCreateNew(query.trim());
+    setCreating(false);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <div className="flex gap-1">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={query}
+            placeholder={placeholder}
+            disabled={disabled || loading}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+              if (!e.target.value) onSelect(0);
+            }}
+            onFocus={() => setOpen(true)}
+            className="w-full h-10 px-3 border rounded-md text-sm bg-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          {loading && (
+            <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+          )}
+        </div>
+      </div>
+      <AnimatePresence>
+        {open && (filtered.length > 0 || canCreate) && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+          >
+            {filtered.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between group"
+                onClick={() => {
+                  onSelect(item.id);
+                  setQuery(item.nombre);
+                  setOpen(false);
+                }}
+              >
+                {item.nombre}
+                {value === item.id && <Check className="w-3 h-3 text-blue-600" />}
+              </button>
+            ))}
+            {canCreate && (
+              <button
+                type="button"
+                disabled={creating}
+                className="w-full text-left px-3 py-2 text-sm text-blue-600 font-bold border-t flex items-center gap-2 hover:bg-blue-50"
+                onClick={handleCreate}
+              >
+                {creating ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Plus className="w-3 h-3" />
+                )}
+                Crear "{query.trim()}"
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 export default function AfiliadosForm({
@@ -43,14 +172,27 @@ export default function AfiliadosForm({
   onSave,
   afiliadoAEditar,
   liderPredefinidoId,
-  lugares,
   lideres,
   afiliados = [],
   isFirstMember = false,
   datosLider = null,
 }: Props) {
+  const { rol_id } = useUserData();
+  const esAdmin = rol_id === 1 || rol_id === 2;
+
   const isEditMode = !!afiliadoAEditar;
+  const [step, setStep] = useState(isEditMode ? 2 : 1);
+  const [isLoadingData, setIsLoadingData] = useState(false);
   const [mostrandoNuevaReligion, setMostrandoNuevaReligion] = useState(false);
+  const [mostrandoNuevoSub, setMostrandoNuevoSub] = useState(false);
+
+  const [politicas, setPoliticas] = useState<Politica[]>([]);
+  const [subPoliticas, setSubPoliticas] = useState<SubPolitica[]>([]);
+  const [lugares, setLugares] = useState<Lugar[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(false);
+  const [politicaSeleccionada, setPoliticaSeleccionada] = useState<number | null>(null);
+  const [subPoliticaSeleccionada, setSubPoliticaSeleccionada] = useState<number | null>(null);
+  const [lugarSeleccionado, setLugarSeleccionado] = useState<number>(0);
 
   const form = useAfiliadosForm();
   const {
@@ -64,7 +206,56 @@ export default function AfiliadosForm({
 
   const sexoActual = watch("sexo");
   const religionActual = watch("religion");
+  const dpiActual = watch("dpi");
   const buscador = useBuscadorLider(lideres, setValue);
+  const [buscandoDpi, setBuscandoDpi] = useState(false);
+  const [padronStatus, setPadronStatus] = useState<"none" | "found" | "not_found">("none");
+  const [yaRegistrado, setYaRegistrado] = useState<{ afiliadoNombre: string; liderNombre: string } | null>(null);
+
+  const handleVerificarDpi = async () => {
+    const dpiLimpio = dpiActual?.replace(/\s/g, "");
+    if (dpiActual !== dpiLimpio) setValue("dpi", dpiLimpio || "");
+    
+    if (!dpiLimpio || dpiLimpio.length !== 13) {
+      setError("dpi", { type: "manual", message: "Ingrese 13 dígitos válidos" });
+      return;
+    }
+    
+    setBuscandoDpi(true);
+    setYaRegistrado(null);
+
+    // Primero verificar si ya está en el sistema de afiliados
+    const enSistema = await buscarDpiEnAfiliadosAction(dpiLimpio);
+    if (enSistema?.yaRegistrado) {
+      setYaRegistrado({ afiliadoNombre: enSistema.afiliadoNombre, liderNombre: enSistema.liderNombre });
+      setBuscandoDpi(false);
+      return;
+    }
+
+    // Luego buscar en el padrón TSE
+    const res = await buscarDpiEnPadronAction(dpiLimpio);
+    if (res && res.encontrado) {
+      setValue("nombres", res.nombres);
+      setValue("apellidos", res.apellidos);
+      setValue("sexo", res.genero as "M" | "F");
+      setValue("empadronado", true);
+      setPadronStatus("found");
+      toast.success("¡Afiliado encontrado en TSE!");
+    } else {
+      setPadronStatus("not_found");
+      setValue("empadronado", false);
+      toast.warning("No encontrado en TSE, pero puedes continuar.");
+    }
+    setBuscandoDpi(false);
+    setStep(2);
+  };
+
+  useEffect(() => {
+    if (isEditMode) setStep(2);
+    else setStep(1);
+    setPadronStatus("none");
+    setYaRegistrado(null);
+  }, [isOpen, isEditMode]);
 
   useInicializarFormulario(
     isOpen,
@@ -79,23 +270,89 @@ export default function AfiliadosForm({
   );
 
   useEffect(() => {
-    if (isOpen && isEditMode && afiliadoAEditar?.religion) {
+    if (isOpen) {
+      if (isEditMode) setIsLoadingData(true);
+      Promise.all([
+        obtenerPoliticasAction(),
+        obtenerLugaresAction()
+      ]).then(async ([p, l]) => {
+        setPoliticas(p);
+        setLugares(l);
+        if (afiliadoAEditar) {
+          const pid = (afiliadoAEditar as any).politica_id || null;
+          const spid = (afiliadoAEditar as any).sub_politica_id || null;
+          const lid = afiliadoAEditar.lugar_id || 0;
+          setPoliticaSeleccionada(pid);
+          setSubPoliticaSeleccionada(spid);
+          setLugarSeleccionado(lid);
+          if (pid) {
+            const subs = await obtenerSubPoliticasAction(pid);
+            setSubPoliticas(subs);
+          }
+        } else {
+          setPoliticaSeleccionada(null);
+          setSubPoliticaSeleccionada(null);
+          setSubPoliticas([]);
+          setLugarSeleccionado(0);
+        }
+        setIsLoadingData(false);
+      });
+    }
+  }, [isOpen, afiliadoAEditar, isEditMode]);
+
+  useEffect(() => {
+    if (isOpen && afiliadoAEditar?.religion) {
       const valor = afiliadoAEditar.religion;
       const esEstandar = ["Católico", "Evangélico"].includes(valor);
-      if (!esEstandar) {
-        setValue("religion", valor);
-      }
+      if (!esEstandar) setValue("religion", valor);
     }
   }, [isOpen, isEditMode, afiliadoAEditar, setValue]);
 
-  const onSubmit = async (formData: AfiliadoFormData) => {
+  const handlePoliticaChange = async (id: number) => {
+    setPoliticaSeleccionada(id || null);
+    setSubPoliticaSeleccionada(null);
+    setValue("politica_id" as any, id || null);
+    setValue("sub_politica_id" as any, null);
+    setSubPoliticas([]);
+    if (id) {
+      setLoadingSubs(true);
+      const subs = await obtenerSubPoliticasAction(id);
+      setSubPoliticas(subs);
+      setLoadingSubs(false);
+    }
+  };
+
+  const handleCrearSubPolitica = async (nombre: string) => {
+    if (!politicaSeleccionada) return;
+    const nueva = await crearSubPoliticaAction(politicaSeleccionada, nombre);
+    if (nueva) {
+      setSubPoliticas((prev) => [...prev, nueva].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setSubPoliticaSeleccionada(nueva.id);
+      setValue("sub_politica_id" as any, nueva.id);
+      toast.success("Subpolítica creada");
+    }
+  };
+
+  const handleCrearLugar = async (nombre: string) => {
+    const nuevo = await crearLugarAction(nombre);
+    if (nuevo) {
+      setLugares((prev) => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setLugarSeleccionado(nuevo.id);
+      setValue("lugar_id", nuevo.id);
+      toast.success("Lugar creado");
+    }
+  };
+
+  const onSubmit = async (formData: any) => {
     const datosProcesados = {
       ...formData,
+      lugar_id: lugarSeleccionado,
+      politica_id: politicaSeleccionada,
+      sub_politica_id: subPoliticaSeleccionada,
       religion: mostrandoNuevaReligion
         ? formData.religion_otra
         : formData.religion,
     };
-
     delete (datosProcesados as any).religion_otra;
 
     const res = await guardarAfiliadoAction(
@@ -109,9 +366,7 @@ export default function AfiliadosForm({
       return;
     }
 
-    toast.success(
-      `Afiliado ${isEditMode ? "actualizado" : "creado"} correctamente.`,
-    );
+    toast.success(`Afiliado ${isEditMode ? "actualizado" : "creado"} correctamente.`);
     setMostrandoNuevaReligion(false);
     onSave();
     onClose();
@@ -132,7 +387,7 @@ export default function AfiliadosForm({
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold uppercase">
-            {isEditMode ? "Editar Afiliado" : "Nuevo Afiliado"}
+            {isEditMode ? "Editar Afiliado" : step === 1 ? "Verificar DPI" : "Completar Datos"}
           </h2>
           <Button size="icon" variant="ghost" onClick={onClose}>
             <X className="h-5 w-5" />
@@ -140,195 +395,441 @@ export default function AfiliadosForm({
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              {...register("nombres")}
-              placeholder="Nombres"
-              readOnly={isFirstMember}
-              className={isFirstMember ? "bg-gray-100" : ""}
-            />
-            <Input
-              {...register("apellidos")}
-              placeholder="Apellidos"
-              readOnly={isFirstMember}
-              className={isFirstMember ? "bg-gray-100" : ""}
-            />
-          </div>
+          {step === 1 && !isEditMode ? (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6 flex flex-col py-8"
+            >
+              {yaRegistrado ? (
+                <div className="p-4 rounded-xl flex flex-col gap-2 border-2 border-red-300 bg-red-50 text-red-800 text-center animate-in zoom-in-95">
+                  <X className="w-10 h-10 text-red-500 mx-auto" />
+                  <p className="text-sm font-black uppercase">¡DPI YA REGISTRADO!</p>
+                  <p className="text-base font-bold">{yaRegistrado.afiliadoNombre}</p>
+                  <p className="text-xs text-red-600 font-medium pb-2 border-b border-red-200">
+                    Célula del líder:<br/>
+                    <span className="font-black text-sm">{yaRegistrado.liderNombre}</span>
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                        setYaRegistrado(null);
+                        setValue("dpi", "");
+                    }}
+                    className="mt-2 text-xs font-bold uppercase bg-red-600 hover:bg-red-700 w-full"
+                  >
+                    Aceptar
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center space-y-2">
+                    <Image
+                      src="/gif/afiliados/gif0.gif"
+                      alt="Animación"
+                      width={60}
+                      height={60}
+                      unoptimized
+                      className="mx-auto"
+                    />
+                    <p className="text-sm font-bold text-gray-500 uppercase">
+                      Ingrese el DPI para buscar en el sistema de afiliación TSE
+                    </p>
+                  </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Input {...register("telefono")} placeholder="Teléfono" />
-            <Input {...register("dpi")} placeholder="DPI" />
-          </div>
+                  <div className="space-y-2">
+                    <Input
+                      {...register("dpi")}
+                      placeholder="DPI (13 dígitos sin espacios)"
+                      disabled={buscandoDpi}
+                      className="h-14 text-center text-xl font-bold tracking-widest placeholder:tracking-normal"
+                      maxLength={13}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleVerificarDpi();
+                        }
+                      }}
+                    />
+                    {errors.dpi && (
+                      <p className="text-xs text-red-500 text-center font-bold">{errors.dpi.message}</p>
+                    )}
+                  </div>
 
-          <div className="grid grid-cols-2 gap-4 items-end">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase block leading-none">
-                Nacimiento
-              </label>
-              <Input
-                type="date"
-                {...register("nacimiento")}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase block leading-none">
-                Sexo
-              </label>
-              <div className="flex rounded-md border p-1 bg-gray-50 h-9">
-                <button
-                  type="button"
-                  onClick={() => setValue("sexo", "M")}
-                  className={`flex-1 rounded text-[10px] font-black transition-all ${sexoActual === "M" ? "bg-blue-600 text-white shadow-sm" : "text-gray-400 hover:bg-gray-200"}`}
-                >
-                  M
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setValue("sexo", "F")}
-                  className={`flex-1 rounded text-[10px] font-black transition-all ${sexoActual === "F" ? "bg-pink-600 text-white shadow-sm" : "text-gray-400 hover:bg-gray-200"}`}
-                >
-                  F
-                </button>
+                  <Button
+                    type="button"
+                    onClick={handleVerificarDpi}
+                    disabled={buscandoDpi || !dpiActual || dpiActual.length < 13}
+                    className="w-full bg-blue-600 hover:bg-blue-700 h-12 font-bold uppercase"
+                  >
+                    {buscandoDpi ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Buscando...
+                      </>
+                    ) : (
+                      "Continuar"
+                    )}
+                  </Button>
+                </>
+              )}
+            </motion.div>
+          ) : isLoadingData ? (
+            <div className="space-y-4 animate-pulse pt-4">
+              <div className="flex gap-4">
+                 <div className="h-10 bg-gray-100 rounded-md flex-1"></div>
+                 <div className="h-10 bg-gray-100 rounded-md flex-1"></div>
+              </div>
+              <div className="flex gap-4">
+                 <div className="h-10 bg-gray-100 rounded-md flex-1"></div>
+                 <div className="h-10 bg-gray-100 rounded-md flex-1"></div>
+              </div>
+              <div className="h-10 bg-gray-100 rounded-md w-full"></div>
+              <div className="h-10 bg-gray-100 rounded-md w-full"></div>
+              <div className="h-10 bg-gray-100 rounded-md w-full"></div>
+              <div className="h-10 bg-gray-100 rounded-md w-full"></div>
+              
+              <div className="flex justify-between mt-6 border-t pt-4">
+                 <div className="h-10 bg-gray-100 rounded-md w-24"></div>
+                 <div className="flex gap-2">
+                   <div className="h-10 bg-gray-100 rounded-md w-24"></div>
+                   <div className="h-10 bg-gray-200 rounded-md w-24"></div>
+                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <select
-              {...register("lugar_id", { valueAsNumber: true })}
-              className="w-full h-10 px-3 border rounded-md text-sm bg-white"
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-4"
             >
-              <option value={0}>Seleccione lugar...</option>
-              {lugares.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.nombre}
-                </option>
-              ))}
-            </select>
-            <select
-              {...register("politica")}
-              className="w-full h-10 px-3 border rounded-md text-sm bg-white"
-            >
-              <option value="">Interés Político...</option>
-              {POLITICAS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
+              {/* STATUS BANNER TSE */}
+              {!isEditMode && padronStatus !== "none" && !yaRegistrado && (
+                <div className={`p-3 rounded-lg flex items-center gap-2 border text-xs font-bold uppercase ${
+                  padronStatus === "found" 
+                  ? "bg-green-50 border-green-200 text-green-700"
+                  : "bg-orange-50 border-orange-200 text-orange-700"
+                }`}>
+                  {padronStatus === "found" ? (
+                    <><Check className="w-4 h-4" /> AFILIADO EN PADRÓN TSE ENCONTRADO - Datos prellenados</>
+                  ) : (
+                    <><X className="w-4 h-4" /> NO ENCONTRADO EN PADRÓN - Por favor llene todos los campos</>
+                  )}
+                </div>
+              )}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full text-blue-600 border-blue-200 text-[10px] font-bold uppercase h-10 shadow-sm"
-            onClick={() =>
-              window.open(
-                "https://tse.org.gt/reg-ciudadanos/sistema-de-estadisticas/consulta-de-afiliacion",
-                "_blank",
-              )
-            }
-          >
-            Verificar en TSE
-          </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Nombres</label>
+                  <Input
+                    {...register("nombres")}
+                    placeholder="Nombres"
+                    readOnly={isFirstMember}
+                    className={isFirstMember ? "bg-gray-100" : ""}
+                  />
+                  {errors.nombres && <p className="text-[10px] text-red-500">{errors.nombres.message}</p>}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Apellidos</label>
+                  <Input
+                    {...register("apellidos")}
+                    placeholder="Apellidos"
+                    readOnly={isFirstMember}
+                    className={isFirstMember ? "bg-gray-100" : ""}
+                  />
+                  {errors.apellidos && <p className="text-[10px] text-red-500">{errors.apellidos.message}</p>}
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4 items-end">
-            <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase">
-                No. Padrón
-              </label>
-              <Input {...register("no_padron")} placeholder="No. Padrón" />
-            </div>
-
-            <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">
-                Religión
-              </label>
-              <div className="flex gap-2 h-10">
-                {!mostrandoNuevaReligion ? (
-                  <>
-                    <select
-                      {...register("religion")}
-                      className="flex-1 px-3 border rounded-md text-sm bg-white"
-                    >
-                      <option value="">Seleccione...</option>
-                      <option value="Católico">Católico</option>
-                      <option value="Evangélico">Evangélico</option>
-                      {religionesExistentes.map((r) => (
-                        <option key={r as string} value={r as string}>
-                          {r as string}
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="outline"
-                      className="shrink-0 border-green-200 text-green-600 h-10 w-10"
-                      onClick={() => setMostrandoNuevaReligion(true)}
-                    >
-                      <Plus className="w-5 h-5" />
-                    </Button>
-                  </>
-                ) : (
-                  <div className="flex gap-2 w-full">
-                    <Input
-                      {...register("religion_otra")}
-                      placeholder="Religión..."
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="shrink-0 text-red-500 h-10 w-10"
-                      onClick={() => {
-                        setMostrandoNuevaReligion(false);
-                        setValue("religion_otra", "");
-                      }}
-                    >
-                      <X className="w-5 h-5" />
-                    </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Teléfono (Opcional)</label>
+                  <Input {...register("telefono")} placeholder="Teléfono" />
+                  {errors.telefono && <p className="text-[10px] text-red-500">{errors.telefono.message}</p>}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">DPI</label>
+                  <div className="relative">
+                    <Input {...register("dpi")} placeholder="DPI" readOnly={!isEditMode} className={!isEditMode ? "bg-gray-100" : ""} />
+                    {padronStatus === "found" && !isEditMode && <Check className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
                   </div>
+                  {errors.dpi && <p className="text-[10px] text-red-500">{errors.dpi.message}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase block leading-none">
+                    Nacimiento
+                  </label>
+                  <Input
+                    type="date"
+                    {...register("nacimiento")}
+                    className="h-9 text-xs"
+                  />
+                  {errors.nacimiento && <p className="text-[10px] text-red-500">{errors.nacimiento.message}</p>}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase block leading-none">
+                    Sexo
+                  </label>
+                  <div className="flex rounded-md border p-1 bg-gray-50 h-9">
+                    <button
+                      type="button"
+                      onClick={() => setValue("sexo", "M")}
+                      className={`flex-1 rounded text-[10px] font-black transition-all ${sexoActual === "M" ? "bg-blue-600 text-white shadow-sm" : "text-gray-400 hover:bg-gray-200"}`}
+                    >
+                      M
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setValue("sexo", "F")}
+                      className={`flex-1 rounded text-[10px] font-black transition-all ${sexoActual === "F" ? "bg-pink-600 text-white shadow-sm" : "text-gray-400 hover:bg-gray-200"}`}
+                    >
+                      F
+                    </button>
+                  </div>
+                  {errors.sexo && <p className="text-[10px] text-red-500">{errors.sexo.message}</p>}
+                </div>
+              </div>
+
+              {/* LUGAR */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase block">
+                  Lugar
+                </label>
+                <ComboSearch
+                  placeholder="Seleccione un lugar..."
+                  items={lugares}
+                  value={lugarSeleccionado || null}
+                  onSelect={(id) => {
+                    setLugarSeleccionado(id);
+                    setValue("lugar_id", id);
+                  }}
+                  onCreateNew={esAdmin ? handleCrearLugar : undefined}
+                />
+                {errors.lugar_id && (
+                  <p className="text-[10px] text-red-500">{errors.lugar_id.message}</p>
                 )}
               </div>
-            </div>
-          </div>
 
-          <input
-            type="hidden"
-            {...register("lider_id")}
-            value={liderPredefinidoId || ""}
-          />
+              {/* POLÍTICA PRINCIPAL */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase block">
+                  Programa de Interés
+                </label>
+                <select
+                  value={politicaSeleccionada ?? ""}
+                  onChange={(e) => handlePoliticaChange(Number(e.target.value))}
+                  className="w-full h-10 px-3 border rounded-md text-sm bg-white"
+                >
+                  <option value="">Seleccione programa...</option>
+                  {politicas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+                {errors.politica_id && <p className="text-[10px] text-red-500">{errors.politica_id.message}</p>}
+              </div>
 
-          <div className="flex justify-between items-center pt-4 border-t mt-2">
-            <Image
-              src="/gif/afiliados/gif0.gif"
-              alt="Animación"
-              width={45}
-              height={45}
-              unoptimized
-            />
-            <div className="flex gap-2">
+              {/* SUBPOLÍTICA */}
+              <AnimatePresence>
+                {politicaSeleccionada && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-1 overflow-hidden"
+                  >
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block">
+                      Sub-programa
+                    </label>
+                    <div className="flex gap-2">
+                      {!mostrandoNuevoSub ? (
+                        <>
+                          <select
+                            value={subPoliticaSeleccionada ?? ""}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setSubPoliticaSeleccionada(val || null);
+                              setValue("sub_politica_id" as any, val || null);
+                            }}
+                            disabled={loadingSubs}
+                            className="flex-1 h-10 px-3 border rounded-md text-sm bg-white disabled:opacity-50"
+                          >
+                            <option value="">Seleccione sub-programa...</option>
+                            {subPoliticas.map((sp) => (
+                              <option key={sp.id} value={sp.id}>
+                                {sp.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          {esAdmin && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              className="shrink-0 border-blue-200 text-blue-600 h-10 w-10"
+                              onClick={() => setMostrandoNuevoSub(true)}
+                            >
+                              <Plus className="w-5 h-5" />
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex gap-2 w-full">
+                          <Input
+                            placeholder="Nombre del nuevo sub-programa..."
+                            className="flex-1"
+                            autoFocus
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                await handleCrearSubPolitica(e.currentTarget.value);
+                                setMostrandoNuevoSub(false);
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="shrink-0 text-red-500 h-10 w-10"
+                            onClick={() => setMostrandoNuevoSub(false)}
+                          >
+                            <X className="w-5 h-5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <Button
                 type="button"
-                variant="ghost"
-                onClick={onClose}
-                className="text-xs font-bold uppercase"
+                variant="outline"
+                className="w-full text-blue-600 border-blue-200 text-[10px] font-bold uppercase h-10 shadow-sm"
+                onClick={() =>
+                  window.open(
+                    "https://tse.org.gt/reg-ciudadanos/sistema-de-estadisticas/consulta-de-afiliacion",
+                    "_blank",
+                  )
+                }
               >
-                Cancelar
+                Verificar No. de Padron en TSE
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-green-600 text-white hover:bg-green-700 text-xs font-bold uppercase px-8 h-10"
-              >
-                {isSubmitting ? "Guardando..." : "Guardar"}
-              </Button>
-            </div>
-          </div>
+
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                    No. Padrón
+                  </label>
+                  <Input {...register("no_padron")} placeholder="No. Padrón" />
+                  {errors.no_padron && <p className="text-[10px] text-red-500">{errors.no_padron.message}</p>}
+                </div>
+
+                <div className="flex flex-col space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                    Religión
+                  </label>
+                  <div className="flex gap-2 h-10">
+                    {!mostrandoNuevaReligion ? (
+                      <div className="flex-1 flex flex-col">
+                        <div className="flex gap-2 w-full">
+                          <select
+                            {...register("religion")}
+                            className="flex-1 px-3 border rounded-md text-sm bg-white"
+                          >
+                            <option value="">Seleccione...</option>
+                            <option value="Católico">Católico</option>
+                            <option value="Evangélico">Evangélico</option>
+                            {religionesExistentes.map((r) => (
+                              <option key={r as string} value={r as string}>
+                                {r as string}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            className="shrink-0 border-green-200 text-green-600 h-10 w-10"
+                            onClick={() => setMostrandoNuevaReligion(true)}
+                          >
+                            <Plus className="w-5 h-5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 w-full">
+                        <Input
+                          {...register("religion_otra")}
+                          placeholder="Religión..."
+                          className="flex-1"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0 text-red-500 h-10 w-10"
+                          onClick={() => {
+                            setMostrandoNuevaReligion(false);
+                            setValue("religion_otra", "");
+                          }}
+                        >
+                          <X className="w-5 h-5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {errors.religion && !mostrandoNuevaReligion && <p className="text-[10px] text-red-500">{errors.religion.message}</p>}
+                </div>
+              </div>
+
+              <input
+                type="hidden"
+                {...register("lider_id")}
+                value={liderPredefinidoId || ""}
+              />
+
+              <div className="flex justify-between items-center pt-4 border-t mt-2">
+                {step === 2 && !isEditMode && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setStep(1);
+                      setPadronStatus("none");
+                    }}
+                    className="text-xs font-bold uppercase text-gray-400"
+                  >
+                    Atrás
+                  </Button>
+                )}
+                
+                <div className="flex gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={onClose}
+                    className="text-xs font-bold uppercase"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-green-600 text-white hover:bg-green-700 text-xs font-bold uppercase px-8 h-10"
+                  >
+                    {isSubmitting ? "Guardando..." : "Guardar"}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </form>
       </motion.div>
     </div>

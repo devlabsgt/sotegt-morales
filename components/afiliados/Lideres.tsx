@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, Fragment, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { obtenerConfiguracionAction } from "../dashboard/actions/configuracion";
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,9 +11,11 @@ import {
   Trash2,
   Eye,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { eliminar } from "./acciones";
+import { obtenerConteoPadronAction } from "./actions/afiliados";
 
 export interface Lider {
   id: string;
@@ -75,7 +79,19 @@ export default function Lideres({
   const isLider = rolUsuarioSesion === "LIDER";
   const esAdminOSuper =
     rolUsuarioSesion === "ADMINISTRADOR" || rolUsuarioSesion === "SUPER";
-  const OBJETIVO_GENERAL = 2250;
+  
+  const { data: config } = useQuery({
+    queryKey: ["config_sistema"],
+    queryFn: () => obtenerConfiguracionAction(),
+  });
+
+  const { data: conteoPadron = 0 } = useQuery({
+    queryKey: ["conteo_padron"],
+    queryFn: () => obtenerConteoPadronAction(),
+  });
+
+  const OBJETIVO_GENERAL = config?.objetivo_total || 0;
+  const META_POR_LIDER = config?.meta_por_lider || 0;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -86,8 +102,8 @@ export default function Lideres({
   , [lideres]);
 
   const progresoGeneral = useMemo(() =>
-    Math.min((totalAfiliadosGeneral / OBJETIVO_GENERAL) * 100, 100)
-  , [totalAfiliadosGeneral]);
+    OBJETIVO_GENERAL > 0 ? Math.min((totalAfiliadosGeneral / OBJETIVO_GENERAL) * 100, 100) : 0
+  , [totalAfiliadosGeneral, OBJETIVO_GENERAL]);
 
   const sortedLideres = useMemo(() =>
     [...lideres].sort((a, b) => {
@@ -131,20 +147,23 @@ export default function Lideres({
     if (lider.id === idUsuarioSesion) {
       return "bg-blue-50 border-blue-200 ring-1 ring-blue-300 shadow-blue-50";
     }
+    if (isLider) {
+      return "bg-gray-50 border-gray-200 opacity-70";
+    }
     return "bg-white border-gray-200 hover:border-blue-400 hover:shadow-lg";
   };
 
   return (
     <>
-      {!hideMeta && esAdminOSuper && (
-        <div className="mb-6 w-full">
+      {!hideMeta && (
+        <div className="w-full mb-6">
           <div className="flex justify-between items-end mb-2">
             <span className="text-xs font-bold uppercase text-gray-600 font-sans">
               Meta General de Afiliación
             </span>
             <span className="text-sm font-black text-blue-700">
               {totalAfiliadosGeneral.toLocaleString()} /{" "}
-              {OBJETIVO_GENERAL.toLocaleString()}
+              {OBJETIVO_GENERAL.toLocaleString()} <span className="text-gray-500 font-bold ml-1">({progresoGeneral.toFixed(1)}%)</span>
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-6 border-2 border-white shadow-inner overflow-hidden flex items-center relative font-sans">
@@ -155,6 +174,14 @@ export default function Lideres({
               className="bg-blue-600 h-full shadow-[inset_0px_0px_10px_rgba(0,0,0,0.2)]"
             />
           </div>
+          {conteoPadron > 0 && (
+            <div className="mt-2 text-right">
+              <p className="text-[10px] font-bold text-gray-500 uppercase">
+                Empadronados TSE registrados: <span className="text-blue-600">{conteoPadron.toLocaleString()}</span>
+                {" "}• La meta <span className="text-blue-600 font-bold">{OBJETIVO_GENERAL.toLocaleString()}</span> representa el <span className="text-blue-600 font-bold">{(OBJETIVO_GENERAL > 0 ? (OBJETIVO_GENERAL / conteoPadron) * 100 : 0).toFixed(1)}%</span> del padrón local.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -162,7 +189,7 @@ export default function Lideres({
       <div className="flex flex-col gap-3">
         {lideresPaginados.map((lider, index) => {
           const totalEnGrupo = lider.conteoAfiliados || 0;
-          const progreso = Math.min((totalEnGrupo / 15) * 100, 100);
+          const progreso = META_POR_LIDER > 0 ? Math.min((totalEnGrupo / META_POR_LIDER) * 100, 100) : 0;
           const tieneAfiliados = totalEnGrupo > 0;
 
           return (
@@ -172,9 +199,10 @@ export default function Lideres({
             >
               {/* Contenedor Principal */}
               <div 
-                className="flex-1 p-4 flex flex-col md:flex-row md:items-center gap-4 cursor-pointer"
+                className={`flex-1 p-4 flex flex-col md:flex-row md:items-center gap-4 ${isLider && lider.id !== idUsuarioSesion ? "cursor-not-allowed" : "cursor-pointer"}`}
                 onClick={() => {
-                   if (window.innerWidth < 768) {
+                  if (isLider && lider.id !== idUsuarioSesion) return;
+                  if (window.innerWidth < 768) {
                     setLiderAbiertoId(liderAbiertoId === lider.id ? null : lider.id);
                   } else {
                     onVerCelula(lider);
@@ -207,7 +235,7 @@ export default function Lideres({
                 <div className="flex-1 max-w-md">
                    <div className="flex justify-between items-end mb-1">
                       <span className="text-[10px] font-black text-gray-400 uppercase">Progreso de Célula</span>
-                      <span className="text-sm md:text-base font-black text-blue-700">{totalEnGrupo}/15</span>
+                      <span className="text-sm md:text-base font-black text-blue-700">{totalEnGrupo}/{META_POR_LIDER}</span>
                    </div>
                    <div className="w-full bg-gray-100 rounded-full h-2 border overflow-hidden">
                       <motion.div
@@ -226,15 +254,22 @@ export default function Lideres({
 
               {/* Botones de Acción - Siempre a la Derecha en Desktop */}
               <div className="hidden md:flex items-center gap-2 px-4 py-2 border-l border-gray-100 bg-gray-50/30">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-9 px-3 text-gray-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors group"
-                  onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  <span className="text-[10px] font-bold uppercase">Célula</span>
-                </Button>
+                {isLider && lider.id !== idUsuarioSesion ? (
+                  <div className="flex items-center gap-2 text-gray-300 px-3 py-2">
+                    <Lock className="h-4 w-4" />
+                    <span className="text-[10px] font-bold uppercase">Bloqueado</span>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 px-3 text-gray-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors group"
+                    onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    <span className="text-[10px] font-bold uppercase">Célula</span>
+                  </Button>
+                )}
 
                 {rolUsuarioSesion !== "LIDER" && (
                   <>
@@ -275,13 +310,20 @@ export default function Lideres({
                     exit={{ opacity: 0, height: 0 }}
                     className="md:hidden border-t border-gray-100 bg-gray-50 flex divide-x"
                   >
-                    <Button
-                      variant="ghost"
-                      className="flex-1 text-gray-700 py-4 font-bold uppercase text-[10px] rounded-none"
-                      onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
-                    >
-                      <Eye className="h-4 w-4 mr-2" /> Ver
-                    </Button>
+                    {isLider && lider.id !== idUsuarioSesion ? (
+                      <div className="flex-1 flex items-center justify-center gap-2 py-4 text-gray-300">
+                        <Lock className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase">Célula bloqueada</span>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        className="flex-1 text-gray-700 py-4 font-bold uppercase text-[10px] rounded-none"
+                        onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" /> Ver
+                      </Button>
+                    )}
                     {rolUsuarioSesion !== "LIDER" && (
                       <>
                         <Button

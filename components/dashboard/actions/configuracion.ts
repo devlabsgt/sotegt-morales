@@ -9,37 +9,55 @@ export async function obtenerConfiguracionAction() {
     .from("sis_configuracion")
     .select("*")
     .single();
-
   if (error) {
     console.error("Error al obtener configuración:", error.message);
     return null;
   }
-
   return data;
 }
 
 export async function actualizarConfiguracionAction(
   nombre_candidato: string,
   lugar: string,
-  frase: string
+  frase: string,
+  objetivo_total: number,
+  meta_por_lider: number
 ) {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data: current } = await supabase
     .from("sis_configuracion")
-    .upsert({ 
-      id: 1, 
-      nombre_candidato, 
-      lugar, 
-      frase,
-      updated_at: new Date().toISOString() 
-    })
-    .select()
-    .single();
+    .select("id")
+    .limit(1)
+    .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
+  const payload = {
+    nombre_candidato,
+    lugar,
+    frase,
+    objetivo_total,
+    meta_por_lider,
+    updated_at: new Date().toISOString()
+  };
+
+  if (current?.id) {
+    const { data, error } = await supabase
+      .from("sis_configuracion")
+      .update(payload)
+      .eq("id", current.id)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  } else {
+    const { data, error } = await supabase
+      .from("sis_configuracion")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
   }
-
-  return data;
 }

@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/client';
 export async function obtenerLugares(): Promise<string[]> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from('lugares_clm')
+    .from('lugares')
     .select('nombre')
     .order('nombre', { ascending: true });
 

@@ -10,17 +10,6 @@ import {
 import { useState, useEffect } from "react";
 import type { Afiliado } from "../esquemas";
 
-const LISTA_POLITICAS = [
-  "Obras de Infraestructura",
-  "Red Vial",
-  "Educación",
-  "Medio Ambiente",
-  "Desarrollo Económico Local",
-  "Servicios Públicos",
-  "de Seguridad",
-  "Salud",
-];
-
 const COLORES = [
   "#3b82f6",
   "#8b5cf6",
@@ -48,7 +37,6 @@ export default function Politicas({ afiliados }: Props) {
   }, []);
 
   const conteo: Record<string, number> = {};
-  LISTA_POLITICAS.forEach((p) => (conteo[p] = 0));
 
   let sinDefinir = 0;
 

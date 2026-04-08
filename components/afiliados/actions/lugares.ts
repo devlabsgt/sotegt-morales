@@ -6,7 +6,7 @@ export async function obtenerLugaresAction() {
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from("lugares_clm")
+    .from("lugares")
     .select("id, nombre")
     .order("nombre", { ascending: true });
 
