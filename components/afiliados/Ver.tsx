@@ -38,6 +38,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export default function Ver() {
   const { rol, cargando: cargandoRol, userId } = useUserData();
+  const esAdminOSuper = rol === "ADMINISTRADOR" || rol === "SUPER";
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -50,6 +51,7 @@ export default function Ver() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCelulaOpen, setIsCelulaOpen] = useState(false);
   const [isEstadisticasOpen, setIsEstadisticasOpen] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
   const [afiliadoParaEditar, setAfiliadoParaEditar] = useState<Afiliado | null>(
@@ -68,7 +70,7 @@ export default function Ver() {
   const { data: afiliados = [], isLoading: isLoadingAfiliados } = useQuery({
     queryKey: ["afiliados-gl"],
     queryFn: () => obtenerAfiliadosAction(),
-    enabled: isEstadisticasOpen || activeTab === "Afiliados" || isCelulaOpen,
+    enabled: isEstadisticasOpen || activeTab === "Afiliados",
   });
 
   const fetchData = async () => {
@@ -78,25 +80,26 @@ export default function Ver() {
       queryClient.invalidateQueries({ queryKey: ["afiliados-lider"] });
       queryClient.invalidateQueries({ queryKey: ["afiliados-gl"] });
 
-      const pLideres = listarUsuariosAction("LIDER");
+      // Primero definimos los roles de administrativos
+      const arrAdmins = rol === "SUPER" ? ["ADMINISTRADOR", "SUPER"] : ["ADMINISTRADOR"];
       
-      // Filtramos qué administrativos pedir según el rol
-      const rolesAdmin = rol === "SUPER" ? ["ADMINISTRADOR", "SUPER"] : ["ADMINISTRADOR"];
-      const pAdmins = listarUsuariosAction(rolesAdmin);
-      
+      // Hacemos una SOLA llamada al backend para todos los roles permitidos
+      const pTodosUsuarios = listarUsuariosAction(["LIDER", ...arrAdmins]);
       const pLugares = obtenerLugaresAction();
 
-      const [lideresData, adminsData, lugaresData] = await Promise.all([
-        pLideres,
-        pAdmins,
+      const [todosUsuariosData, lugaresData] = await Promise.all([
+        pTodosUsuarios,
         pLugares
       ]);
       
-      const allLideres = (
-        Array.isArray(lideresData)
-          ? lideresData
-          : (lideresData as any)?.data || []
+      // Manejar la estructura según si viene envuelto
+      const allUsers = (
+        Array.isArray(todosUsuariosData) ? todosUsuariosData : (todosUsuariosData as any)?.data || []
       ) as Lider[];
+
+      // Separamos en memoria líderes y administrativos
+      const allLideres = allUsers.filter(u => u.rol === "LIDER");
+      const allAdmins = allUsers.filter(u => arrAdmins.includes(u.rol));
       
       if (rol === "LIDER" && userId) {
         const myLider = allLideres.find((l) => l.id === userId);
@@ -107,16 +110,10 @@ export default function Ver() {
       }
       
       setLugares(
-        (Array.isArray(lugaresData)
-          ? lugaresData
-          : (lugaresData as any)?.data || []) as Lugar[],
+        (Array.isArray(lugaresData) ? lugaresData : (lugaresData as any)?.data || []) as Lugar[]
       );
 
-      setAdministrativos(
-        (Array.isArray(adminsData)
-          ? adminsData
-          : (adminsData as any)?.data || []) as Lider[],
-      );
+      setAdministrativos(allAdmins);
     } catch (e) {
       console.error(e);
       toast.error("Error al cargar los datos.");
@@ -206,7 +203,7 @@ export default function Ver() {
   return (
     <>
       <div className="px-2 md:px-6">
-        <ConfiguracionSistema />
+        <ConfiguracionSistema showMetas={false} allowEditing={false} />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
           <div className="flex items-center gap-4 w-full md:w-auto">
             <h1 className="text-2xl font-bold text-black md:text-3xl whitespace-nowrap">
@@ -233,7 +230,16 @@ export default function Ver() {
             >
               📊 Estadísticas Generales
             </Button>
-            {(rol === "ADMINISTRADOR" || rol === "SUPER") && (
+            {esAdminOSuper && (
+              <Button
+                onClick={() => setIsConfigOpen(true)}
+                variant="outline"
+                className="gap-2 w-full text-xs md:text-xl"
+              >
+                ⚙️ Configuraciones
+              </Button>
+            )}
+            {esAdminOSuper && (
               <Button
                 onClick={handleOpenCreateLiderModal}
                 className="gap-2 w-full text-xl"
@@ -362,6 +368,33 @@ export default function Ver() {
         </Dialog>
       </Transition>
 
+      <Dialog
+        open={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        className="relative z-50 font-sans"
+      >
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <DialogPanel className="mx-auto max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-2xl font-black text-blue-900 flex items-center gap-2">
+                ⚙️ Configuración del Sistema
+              </h2>
+              <button
+                onClick={() => setIsConfigOpen(false)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              >
+                <X className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4 md:p-6 max-h-[80vh] overflow-y-auto bg-gray-50/30">
+              <ConfiguracionSistema onClose={() => setIsConfigOpen(false)} />
+            </div>
+
+          </DialogPanel>
+        </div>
+      </Dialog>
+
       <Celula
         isOpen={isCelulaOpen}
         onClose={handleCloseCelulaModal}
@@ -391,17 +424,40 @@ export default function Ver() {
           className="relative z-50"
           onClose={handleCloseSignupModal}
         >
-          <div className="fixed inset-0 bg-black/50" />
-          <div className="fixed inset-0 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4 text-center">
-              <DialogPanel className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all p-4 md:p-8">
-                <SignupForm
-                  initialData={liderAEditar}
-                  onSuccess={handleSignupSuccess}
-                  onClose={handleCloseSignupModal}
-                  isModal={true}
-                />
-              </DialogPanel>
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                enterTo="opacity-100 translate-y-0 sm:scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+                leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+              >
+                <DialogPanel className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+                  <div className="p-4 md:p-8">
+                    <SignupForm
+                      initialData={liderAEditar}
+                      onSuccess={handleSignupSuccess}
+                      onClose={handleCloseSignupModal}
+                      isModal={true}
+                    />
+                  </div>
+                </DialogPanel>
+              </TransitionChild>
             </div>
           </div>
         </Dialog>

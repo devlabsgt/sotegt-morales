@@ -27,7 +27,7 @@ export default function LogoLink() {
             alt="Afiliaciones CLM"
             height={100}
             width={100}
-            className="w-16 md:w-36 h-auto object-contain ml-2 mt-5"
+            className="w-16 md:w-28 h-auto object-contain ml-2 mt-5"
             priority
           />
         </motion.div>

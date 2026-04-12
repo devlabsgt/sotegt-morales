@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Plus, Loader2, Check } from "lucide-react";
+import { X, Plus, Loader2, Check, Save, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { toast } from "react-toastify";
 
 import { guardarAfiliadoAction, buscarDpiEnPadronAction, buscarDpiEnAfiliadosAction } from "./actions";
+import { obtenerReligionesUnicasAction } from "../../actions/afiliados";
 import { type AfiliadoFormData, type Afiliado } from "./schemas";
 import {
   useAfiliadosForm,
@@ -212,6 +213,21 @@ export default function AfiliadosForm({
   const [padronStatus, setPadronStatus] = useState<"none" | "found" | "not_found">("none");
   const [yaRegistrado, setYaRegistrado] = useState<{ afiliadoNombre: string; liderNombre: string } | null>(null);
 
+  const [religionesRemotas, setReligionesRemotas] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      obtenerReligionesUnicasAction().then(res => setReligionesRemotas(res));
+    }
+  }, [isOpen]);
+
+  // Extraer las religiones existentes (omitir Católico y Evangélico que ya son fijas)
+  const religionesExistentes = Array.from(
+    new Set([...(afiliados || []).map((a) => a.religion), ...religionesRemotas].filter(Boolean))
+  ).filter((r) => r !== "Católico" && r !== "Evangélico");
+  
+  const esReligionCustom = religionActual && !["Católico", "Evangélico", ...religionesExistentes].includes(religionActual);
+
   const handleVerificarDpi = async () => {
     const dpiLimpio = dpiActual?.replace(/\s/g, "");
     if (dpiActual !== dpiLimpio) setValue("dpi", dpiLimpio || "");
@@ -372,10 +388,6 @@ export default function AfiliadosForm({
     onClose();
   };
 
-  const religionesExistentes = Array.from(
-    new Set((afiliados || []).map((a) => a.religion).filter(Boolean)),
-  ).filter((r) => r !== "Católico" && r !== "Evangélico");
-
   if (!isOpen) return null;
 
   return (
@@ -520,7 +532,7 @@ export default function AfiliadosForm({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">Nombres</label>
+                  <label className="text-[10px] font-bold text-blue-600 uppercase">Nombres</label>
                   <Input
                     {...register("nombres")}
                     placeholder="Nombres"
@@ -530,7 +542,7 @@ export default function AfiliadosForm({
                   {errors.nombres && <p className="text-[10px] text-red-500">{errors.nombres.message}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">Apellidos</label>
+                  <label className="text-[10px] font-bold text-blue-600 uppercase">Apellidos</label>
                   <Input
                     {...register("apellidos")}
                     placeholder="Apellidos"
@@ -543,12 +555,12 @@ export default function AfiliadosForm({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">Teléfono (Opcional)</label>
+                  <label className="text-[10px] font-bold text-green-600 uppercase">Teléfono (Whatsapp)</label>
                   <Input {...register("telefono")} placeholder="Teléfono" />
                   {errors.telefono && <p className="text-[10px] text-red-500">{errors.telefono.message}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">DPI</label>
+                  <label className="text-[10px] font-bold text-blue-600 uppercase">DPI</label>
                   <div className="relative">
                     <Input {...register("dpi")} placeholder="DPI" readOnly={!isEditMode} className={!isEditMode ? "bg-gray-100" : ""} />
                     {padronStatus === "found" && !isEditMode && <Check className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
@@ -557,9 +569,22 @@ export default function AfiliadosForm({
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono 2 (Opcional)</label>
+                  <Input {...register("telefono2")} placeholder="Teléfono alternativo" />
+                  {errors.telefono2 && <p className="text-[10px] text-red-500">{errors.telefono2.message}</p>}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono 3 (Opcional)</label>
+                  <Input {...register("telefono3")} placeholder="Teléfono alternativo" />
+                  {errors.telefono3 && <p className="text-[10px] text-red-500">{errors.telefono3.message}</p>}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 items-end">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase block leading-none">
+                  <label className="text-[10px] font-bold text-blue-600 uppercase block leading-none">
                     Nacimiento
                   </label>
                   <Input
@@ -570,7 +595,7 @@ export default function AfiliadosForm({
                   {errors.nacimiento && <p className="text-[10px] text-red-500">{errors.nacimiento.message}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase block leading-none">
+                  <label className="text-[10px] font-bold text-blue-600 uppercase block leading-none">
                     Sexo
                   </label>
                   <div className="flex rounded-md border p-1 bg-gray-50 h-9">
@@ -595,7 +620,7 @@ export default function AfiliadosForm({
 
               {/* LUGAR */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase block">
+                <label className="text-[10px] font-bold text-blue-600 uppercase block">
                   Lugar
                 </label>
                 <ComboSearch
@@ -615,7 +640,7 @@ export default function AfiliadosForm({
 
               {/* POLÍTICA PRINCIPAL */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase block">
+                <label className="text-[10px] font-bold text-purple-600 uppercase block">
                   Programa de Interés
                 </label>
                 <select
@@ -642,7 +667,7 @@ export default function AfiliadosForm({
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-1 overflow-hidden"
                   >
-                    <label className="text-[10px] font-bold text-gray-400 uppercase block">
+                    <label className="text-[10px] font-bold text-purple-600 uppercase block">
                       Sub-programa
                     </label>
                     <div className="flex gap-2">
@@ -721,17 +746,17 @@ export default function AfiliadosForm({
                 Verificar No. de Padron en TSE
               </Button>
 
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+              <div className="grid grid-cols-5 gap-4 items-end">
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[10px] font-bold text-orange-600 uppercase">
                     No. Padrón
                   </label>
                   <Input {...register("no_padron")} placeholder="No. Padrón" />
                   {errors.no_padron && <p className="text-[10px] text-red-500">{errors.no_padron.message}</p>}
                 </div>
 
-                <div className="flex flex-col space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                <div className="col-span-3 flex flex-col space-y-1">
+                  <label className="text-[10px] font-bold text-orange-600 uppercase">
                     Religión
                   </label>
                   <div className="flex gap-2 h-10">
@@ -750,6 +775,9 @@ export default function AfiliadosForm({
                                 {r as string}
                               </option>
                             ))}
+                            {esReligionCustom && (
+                              <option value={religionActual}>{religionActual}</option>
+                            )}
                           </select>
                           <Button
                             type="button"
@@ -763,24 +791,49 @@ export default function AfiliadosForm({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex gap-2 w-full">
+                      <div className="flex gap-1 w-full">
                         <Input
                           {...register("religion_otra")}
                           placeholder="Religión..."
-                          className="flex-1"
+                          className="flex-1 px-2"
                           autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const nuevaReligion = form.getValues("religion_otra");
+                              if (nuevaReligion) {
+                                setValue("religion", nuevaReligion);
+                                setMostrandoNuevaReligion(false);
+                              }
+                            }
+                          }}
                         />
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="shrink-0 text-red-500 h-10 w-10"
+                          className="shrink-0 text-green-600 bg-green-50 hover:bg-green-100 h-10 w-10"
+                          onClick={() => {
+                            const nuevaReligion = form.getValues("religion_otra");
+                            if (nuevaReligion) {
+                              setValue("religion", nuevaReligion);
+                              setMostrandoNuevaReligion(false);
+                            }
+                          }}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0 text-red-500 bg-red-50 hover:bg-red-100 h-10 w-10"
                           onClick={() => {
                             setMostrandoNuevaReligion(false);
                             setValue("religion_otra", "");
                           }}
                         >
-                          <X className="w-5 h-5" />
+                          <X className="w-4 h-4" />
                         </Button>
                       </div>
                     )}

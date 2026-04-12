@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { eliminar } from "./acciones";
 import { obtenerConteoPadronAction } from "./actions/afiliados";
+import Swal from "sweetalert2";
 
 export interface Lider {
   id: string;
@@ -145,12 +146,9 @@ export default function Lideres({
 
   const getRowClass = (lider: Lider) => {
     if (lider.id === idUsuarioSesion) {
-      return "bg-blue-50 border-blue-200 ring-1 ring-blue-300 shadow-blue-50";
+      return "bg-blue-50/50 border-blue-200 ring-1 ring-blue-500 shadow-md transform scale-[1.01]";
     }
-    if (isLider) {
-      return "bg-gray-50 border-gray-200 opacity-70";
-    }
-    return "bg-white border-gray-200 hover:border-blue-400 hover:shadow-lg";
+    return "bg-white border-gray-200 hover:border-blue-300 hover:shadow-lg";
   };
 
   return (
@@ -158,10 +156,10 @@ export default function Lideres({
       {!hideMeta && (
         <div className="w-full mb-6">
           <div className="flex justify-between items-end mb-2">
-            <span className="text-xs font-bold uppercase text-gray-600 font-sans">
-              Meta General de Afiliación
+            <span className="text-xs md:text-xl font-bold uppercase text-gray-600 font-sans">
+              Meta General de Afiliación:
             </span>
-            <span className="text-sm font-black text-blue-700">
+            <span className="text-sm md:text-xl font-black text-blue-700">
               {totalAfiliadosGeneral.toLocaleString()} /{" "}
               {OBJETIVO_GENERAL.toLocaleString()} <span className="text-gray-500 font-bold ml-1">({progresoGeneral.toFixed(1)}%)</span>
             </span>
@@ -174,16 +172,22 @@ export default function Lideres({
               className="bg-blue-600 h-full shadow-[inset_0px_0px_10px_rgba(0,0,0,0.2)]"
             />
           </div>
-          {conteoPadron > 0 && (
+          {conteoPadron > 0 && esAdminOSuper && (
             <div className="mt-2 text-right">
-              <p className="text-[10px] font-bold text-gray-500 uppercase">
+              <p className="text-xs md:text-xl font-bold text-gray-500 uppercase">
                 Empadronados TSE registrados: <span className="text-blue-600">{conteoPadron.toLocaleString()}</span>
-                {" "}• La meta <span className="text-blue-600 font-bold">{OBJETIVO_GENERAL.toLocaleString()}</span> representa el <span className="text-blue-600 font-bold">{(OBJETIVO_GENERAL > 0 ? (OBJETIVO_GENERAL / conteoPadron) * 100 : 0).toFixed(1)}%</span> del padrón local.
+                {" "}• La meta <span className="text-blue-600 font-bold">{OBJETIVO_GENERAL.toLocaleString()}</span> representa el <span className="text-blue-600 font-bold">{(OBJETIVO_GENERAL > 0 ? (OBJETIVO_GENERAL / conteoPadron) * 100 : 0).toFixed(1)}%</span> del padrón local
               </p>
             </div>
           )}
         </div>
       )}
+
+      <div className="flex justify-start mb-2 px-2">
+        <span className="text-sm md:text-xl font-black text-blue-800 uppercase tracking-tight">
+          Líderes registrados: <span className="text-blue-600">{lideres.length}</span>
+        </span>
+      </div>
 
       {/* Lista de Tarjetas en una sola columna */}
       <div className="flex flex-col gap-3">
@@ -199,10 +203,10 @@ export default function Lideres({
             >
               {/* Contenedor Principal */}
               <div 
-                className={`flex-1 p-4 flex flex-col md:flex-row md:items-center gap-4 ${isLider && lider.id !== idUsuarioSesion ? "cursor-not-allowed" : "cursor-pointer"}`}
+                className={`flex-1 p-4 flex flex-col md:flex-row md:items-center gap-4 ${isLider && lider.id !== idUsuarioSesion ? "cursor-default" : "cursor-pointer"}`}
                 onClick={() => {
-                  if (isLider && lider.id !== idUsuarioSesion) return;
-                  if (window.innerWidth < 768) {
+                  if (rolUsuarioSesion === "LIDER" && lider.id !== idUsuarioSesion) return;
+                  if (window.innerWidth < 768 && rolUsuarioSesion !== "LIDER") {
                     setLiderAbiertoId(liderAbiertoId === lider.id ? null : lider.id);
                   } else {
                     onVerCelula(lider);
@@ -211,11 +215,11 @@ export default function Lideres({
               >
                 {/* No. y Nombre */}
                 <div className="flex items-center gap-3 min-w-0 md:w-1/3">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-50 text-xs font-black text-gray-400 shrink-0">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-xs font-black text-blue-600 border border-blue-100 shrink-0">
                     {startIndex + index + 1}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className={`font-black text-sm md:text-base leading-tight truncate ${lider.id === idUsuarioSesion ? "text-blue-900" : "text-gray-900"}`}>
+                    <h3 className={`font-black text-sm md:text-base leading-tight line-clamp-2 break-words ${lider.id === idUsuarioSesion ? "text-blue-900" : "text-gray-900"}`}>
                       {lider.nombres} {lider.apellidos}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
@@ -232,12 +236,12 @@ export default function Lideres({
                 </div>
 
                 {/* Meta / Progreso */}
-                <div className="flex-1 max-w-md">
+                <div className="flex-1 md:max-w-none w-full">
                    <div className="flex justify-between items-end mb-1">
-                      <span className="text-[10px] font-black text-gray-400 uppercase">Progreso de Célula</span>
-                      <span className="text-sm md:text-base font-black text-blue-700">{totalEnGrupo}/{META_POR_LIDER}</span>
+                      <span className="text-xs font-black text-gray-400 uppercase">Progreso de Célula</span>
+                      <span className="text-base md:text-lg font-black text-blue-700">{totalEnGrupo}/{META_POR_LIDER}</span>
                    </div>
-                   <div className="w-full bg-gray-100 rounded-full h-2 border overflow-hidden">
+                   <div className="w-full bg-gray-100 rounded-full h-4 border overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${progreso}%` }}
@@ -253,99 +257,87 @@ export default function Lideres({
               </div>
 
               {/* Botones de Acción - Siempre a la Derecha en Desktop */}
-              <div className="hidden md:flex items-center gap-2 px-4 py-2 border-l border-gray-100 bg-gray-50/30">
-                {isLider && lider.id !== idUsuarioSesion ? (
-                  <div className="flex items-center gap-2 text-gray-300 px-3 py-2">
-                    <Lock className="h-4 w-4" />
-                    <span className="text-[10px] font-bold uppercase">Bloqueado</span>
-                  </div>
-                ) : (
+              {rolUsuarioSesion !== "LIDER" && (
+                <div className="hidden md:flex items-center gap-2 px-4 py-2 border-l border-gray-100 bg-gray-50/30">
+
+
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-9 px-3 text-gray-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors group"
-                    onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
+                    className="h-9 px-3 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors"
+                    onClick={(e) => { e.stopPropagation(); onEditar(lider); }}
                   >
-                    <Eye className="h-4 w-4 mr-2" />
-                    <span className="text-[10px] font-bold uppercase">Célula</span>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    <span className="text-[10px] font-bold uppercase">Editar Líder</span>
                   </Button>
-                )}
-
-                {rolUsuarioSesion !== "LIDER" && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-9 px-3 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors"
-                      onClick={(e) => { e.stopPropagation(); onEditar(lider); }}
-                    >
-                      <Pencil className="h-4 w-4 mr-2" />
-                      <span className="text-[10px] font-bold uppercase">Editar</span>
-                    </Button>
-                    
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={tieneAfiliados}
-                      className={`h-9 px-3 rounded-lg transition-colors ${tieneAfiliados ? "text-gray-300" : "text-red-500 hover:bg-red-600 hover:text-white"}`}
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (!tieneAfiliados) eliminar(lider, onDataChange);
-                      }}
-                      title={tieneAfiliados ? "No se puede eliminar un líder con miembros" : "Eliminar líder"}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      <span className="text-[10px] font-bold uppercase">Eliminar</span>
-                    </Button>
-                  </>
-                )}
-              </div>
+                  
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 px-3 rounded-lg transition-colors text-red-500 hover:bg-red-600 hover:text-white"
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      if (tieneAfiliados) {
+                        Swal.fire({
+                          icon: "error",
+                          title: "No se puede eliminar",
+                          text: "No se puede eliminar porque hay afiliados en el sistema asignados a esta célula.",
+                          confirmButtonColor: "#2563eb"
+                        });
+                      } else {
+                        eliminar(lider, onDataChange);
+                      }
+                    }}
+                    title="Eliminar líder"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    <span className="text-[10px] font-bold uppercase">Eliminar</span>
+                  </Button>
+                </div>
+              )}
 
               {/* Acordeón Móvil */}
               <AnimatePresence>
-                {liderAbiertoId === lider.id && (
+                {liderAbiertoId === lider.id && rolUsuarioSesion !== "LIDER" && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     className="md:hidden border-t border-gray-100 bg-gray-50 flex divide-x"
                   >
-                    {isLider && lider.id !== idUsuarioSesion ? (
-                      <div className="flex-1 flex items-center justify-center gap-2 py-4 text-gray-300">
-                        <Lock className="h-4 w-4" />
-                        <span className="text-[10px] font-bold uppercase">Célula bloqueada</span>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        className="flex-1 text-gray-700 py-4 font-bold uppercase text-[10px] rounded-none"
-                        onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" /> Ver
-                      </Button>
-                    )}
-                    {rolUsuarioSesion !== "LIDER" && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          className="flex-1 text-blue-600 py-4 font-bold uppercase text-[10px] rounded-none"
-                          onClick={(e) => { e.stopPropagation(); onEditar(lider); }}
-                        >
-                          <Pencil className="h-4 w-4 mr-2" /> Editar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          disabled={tieneAfiliados}
-                          className={`flex-1 py-4 font-bold uppercase text-[10px] rounded-none ${tieneAfiliados ? "text-gray-300" : "text-red-500"}`}
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            if (!tieneAfiliados) eliminar(lider, onDataChange);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" /> Borrar
-                        </Button>
-                      </>
-                    )}
+                    <Button
+                      variant="ghost"
+                      className="flex-1 text-gray-700 py-4 font-bold uppercase text-[10px] rounded-none"
+                      onClick={(e) => { e.stopPropagation(); onVerCelula(lider); }}
+                    >
+                      <Eye className="h-4 w-4 mr-2" /> Ver
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="flex-1 text-blue-600 py-4 font-bold uppercase text-[10px] rounded-none"
+                      onClick={(e) => { e.stopPropagation(); onEditar(lider); }}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" /> Editar Líder
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="flex-1 py-4 font-bold uppercase text-[10px] rounded-none text-red-500"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (tieneAfiliados) {
+                          Swal.fire({
+                            icon: "error",
+                            title: "No se puede eliminar",
+                            text: "No se puede eliminar porque hay afiliados en el sistema asignados a esta célula.",
+                            confirmButtonColor: "#2563eb"
+                          });
+                        } else {
+                          eliminar(lider, onDataChange);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> Borrar
+                    </Button>
                   </motion.div>
                 )}
               </AnimatePresence>

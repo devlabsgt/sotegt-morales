@@ -27,7 +27,7 @@ export async function obtenerAfiliadosAction(liderId?: string) {
   ];
 
   // Ejecución en paralelo de las consultas de apoyo
-  const [perfilesRes, lugaresRes, usersRes, politicasRes] = await Promise.all([
+  const [perfilesRes, lugaresRes, politicasRes] = await Promise.all([
     liderIds.length > 0
       ? supabase
           .from("info_perfil")
@@ -39,20 +39,15 @@ export async function obtenerAfiliadosAction(liderId?: string) {
       ? supabase.from("lugares").select("id, nombre").in("id", lugarIds)
       : { data: [] },
 
-    // Mantener listUsers pero con precaución
-    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }).catch(() => ({ data: { users: [] } })),
-
     supabase.from("sis_politicas").select("id, nombre")
   ]);
 
   const perfiles = perfilesRes.data || [];
   const lugares = lugaresRes.data || [];
-  const users = (usersRes as any)?.data?.users || [];
   const politicas = politicasRes.data || [];
 
   const perfilMap = new Map(perfiles.map((p: any) => [p.user_id, p]));
   const lugarMap = new Map(lugares.map((l: any) => [l.id, l.nombre]));
-  const userMap = new Map(users.map((u: any) => [u.id, u.email]));
   const politicaMap = new Map(politicas.map((p: any) => [p.id, p.nombre]));
 
   return afiliados.map((afiliado: any) => {
@@ -71,9 +66,7 @@ export async function obtenerAfiliadosAction(liderId?: string) {
       lider_nombre: perfilLider
         ? `${perfilLider.nombres} ${perfilLider.apellidos}`
         : "Sin Líder",
-      lider_email: afiliado.lider_id
-        ? userMap.get(afiliado.lider_id) || ""
-        : "",
+      lider_email: "",
     };
   });
 }
@@ -89,4 +82,18 @@ export async function obtenerConteoPadronAction() {
     return 0;
   }
   return count || 0;
+}
+
+export async function obtenerReligionesUnicasAction() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("afiliados")
+    .select("religion");
+
+  if (error) {
+    console.error("Error al obtener religiones:", error);
+    return [];
+  }
+  const uniq = Array.from(new Set(data.map((d: any) => d.religion).filter(Boolean)));
+  return uniq.filter(r => r !== "Católico" && r !== "Evangélico");
 }

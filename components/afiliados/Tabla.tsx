@@ -9,6 +9,7 @@ import {
   Hash,
   XCircle,
   MessageCircle,
+  Download,
 } from "lucide-react";
 import { eliminar } from "./acciones";
 import type { Afiliado, Lider } from "./esquemas";
@@ -19,6 +20,7 @@ interface Props {
   onEditar: (afiliado: Afiliado) => void;
   onDataChange: () => void;
   rolUsuarioSesion: string;
+  config?: any;
 }
 
 export default function Tabla({
@@ -27,6 +29,7 @@ export default function Tabla({
   onEditar,
   onDataChange,
   rolUsuarioSesion,
+  config,
 }: Props) {
   const puedeVerAcciones = true;
 
@@ -58,21 +61,143 @@ export default function Tabla({
     return `https://wa.me/${numeroFinal}`;
   };
 
+  const formatearFecha = (fecha: string) => {
+    if (!fecha) return "—";
+    const d = new Date(fecha);
+    const dias = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+    const diaSemana = dias[d.getDay()];
+    const dia = d.getDate().toString().padStart(2, "0");
+    const mes = (d.getMonth() + 1).toString().padStart(2, "0");
+    const anio = d.getFullYear().toString().slice(-2);
+    let horas = d.getHours();
+    const minutos = d.getMinutes().toString().padStart(2, "0");
+    const ampm = horas >= 12 ? "PM" : "AM";
+    horas = horas % 12;
+    horas = horas ? horas : 12;
+    const horasStr = horas.toString().padStart(2, "0");
+
+    return `${diaSemana} ${dia}/${mes}/${anio}, ${horasStr}:${minutos} ${ampm}`;
+  };
+
+  const descargarCarnet = (afiliado: Afiliado) => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Proporciones carnet horizontal (CR80 ~1.58 ratio)
+    canvas.width = 1000;
+    canvas.height = 630;
+
+    // 1. Fondo Blanco (Ahorro de tinta)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Elementos decorativos (Bordes finos y profesionales)
+    ctx.strokeStyle = "#1e40af"; // Azul institucional
+    ctx.lineWidth = 4;
+    ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+    
+    // Detalle en las esquinas
+    ctx.fillStyle = "#1e40af";
+    ctx.fillRect(30, 30, 100, 10); // Top-left
+    ctx.fillRect(30, 30, 10, 100); 
+    ctx.fillRect(canvas.width - 130, 30, 100, 10); // Top-right
+    ctx.fillRect(canvas.width - 40, 30, 10, 100);
+
+    // 3. Encabezado
+    ctx.fillStyle = "#1e40af";
+    ctx.font = "bold 24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("CONSTANCIA DE AFILIACIÓN", canvas.width / 2, 75);
+    
+    ctx.fillStyle = "#111827"; // Casi negro
+    ctx.font = "900 40px sans-serif";
+    ctx.fillText(config?.nombre_candidato?.toUpperCase() || "AFILIACIÓN", canvas.width / 2, 125);
+
+    // 4. Línea divisoria elegante
+    ctx.beginPath();
+    ctx.moveTo(100, 155);
+    ctx.lineTo(900, 155);
+    ctx.strokeStyle = "#e5e7eb"; // gris muy claro
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 5. Datos del Afiliado
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#6b7280"; // gris-500
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("NOMBRE DEL AFILIADO:", 100, 210);
+    
+    ctx.fillStyle = "#1e40af";
+    ctx.font = "bold 44px sans-serif";
+    const nombreCompleto = `${afiliado.nombres} ${afiliado.apellidos}`.toUpperCase();
+    ctx.fillText(nombreCompleto, 100, 265);
+
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("DOCUMENTO PERSONAL DE IDENTIFICACIÓN (DPI):", 100, 340);
+    
+    ctx.fillStyle = "#111827";
+    ctx.font = "bold 38px monospace";
+    ctx.fillText(afiliado.dpi || "0000 00000 0000", 100, 390);
+
+    // 6. Otros datos (Padrón / Lugar)
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("NO. DE PADRÓN:", 100, 460);
+    ctx.fillStyle = "#111827";
+    ctx.font = "bold 32px sans-serif";
+    ctx.fillText(afiliado.no_padron || "N/A", 100, 505);
+
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("MUNICIPIO / LUGAR:", 550, 460);
+    ctx.fillStyle = "#111827";
+    ctx.font = "bold 32px sans-serif";
+    ctx.fillText(afiliado.lugar_nombre || config?.lugar || "MORALES, IZABAL", 550, 505);
+
+    // 7. Pie de carnet
+    ctx.fillStyle = "#9ca3af"; // gris-400
+    ctx.font = "italic 18px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`Fecha de Afiliacion: ${formatearFecha(afiliado.created_at)}`, 900, 580);
+
+    // 9. Descarga
+    const link = document.createElement("a");
+    link.download = `carnet_${afiliado.nombres.replace(/\s/g, "_")}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
       {afiliados.map((afiliado, index) => (
         <div
           key={afiliado.id}
-          className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col overflow-hidden"
+          className="group relative bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex flex-col"
         >
+          {/* Tooltip Personalizado */}
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-[100] whitespace-nowrap">
+            <div className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-md shadow-xl border border-blue-400">
+              {afiliado.nombres} {afiliado.apellidos}
+              {/* Flechita del tooltip */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-blue-600"></div>
+            </div>
+          </div>
+
           <div className="p-4 flex-1 space-y-4">
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-              <span className="flex items-center justify-center bg-blue-100 text-blue-700 font-bold text-xs h-6 w-6 rounded-md shrink-0">
-                {index + 1}
-              </span>
-              <h3 className="text-xs font-bold text-gray-900 uppercase leading-tight truncate">
-                {afiliado.nombres} {afiliado.apellidos}
-              </h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-3 gap-1 md:gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex items-center justify-center bg-blue-100 text-blue-700 font-bold text-xs h-6 w-6 rounded-md shrink-0">
+                  {index + 1}
+                </span>
+                <h3 className="text-xs font-bold text-gray-900 uppercase leading-tight truncate group-hover:text-blue-600 transition-colors">
+                  {afiliado.nombres} {afiliado.apellidos}
+                </h3>
+              </div>
+              <div className="text-xs italic text-slate-400 shrink-0 md:text-right">
+                Afiliado el: <span className="font-bold">{formatearFecha(afiliado.created_at)}</span>
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-xs text-gray-600 gap-2">
@@ -156,7 +281,15 @@ export default function Tabla({
           </div>
 
           {puedeVerAcciones && (
-            <div className="bg-gray-50 p-3 border-t border-gray-100 flex gap-2 mt-auto">
+            <div className="bg-gray-50 p-3 border-t border-gray-100 flex gap-2 mt-auto rounded-b-lg">
+              <Button
+                variant="outline"
+                className="flex-1 bg-white text-green-600 border-gray-200 hover:bg-green-50 hover:text-green-700 h-8 text-xs font-bold"
+                onClick={() => descargarCarnet(afiliado)}
+              >
+                <Download className="w-3.5 h-3.5 mr-2" />
+                Carnet
+              </Button>
               <Button
                 variant="outline"
                 className="flex-1 bg-white text-blue-600 border-gray-200 hover:bg-blue-50 hover:text-blue-700 h-8 text-xs"

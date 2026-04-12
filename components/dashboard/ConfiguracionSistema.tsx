@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit, Check, X } from "lucide-react";
+import { Edit, Check, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,13 +10,22 @@ import { toast } from "react-toastify";
 import useUserData from "@/hooks/sesion/useUserData";
 import { obtenerConfiguracionAction, actualizarConfiguracionAction } from "./actions/configuracion";
 
-export default function ConfiguracionSistema() {
+interface Props {
+  showMetas?: boolean;
+  allowEditing?: boolean;
+  onClose?: () => void;
+}
+
+export default function ConfiguracionSistema({ 
+  showMetas = true, 
+  allowEditing = true,
+  onClose
+}: Props) {
   const { rol, cargando: cargandoRol } = useUserData();
   const queryClient = useQueryClient();
-  const [isEditingLider, setIsEditingLider] = useState(false);
-  const [isEditingMetas, setIsEditingMetas] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   
-  const canEdit = rol === "SUPER" || rol === "ADMIN";
+  const canEdit = (rol === "SUPER" || rol === "ADMINISTRADOR" || rol === "ADMIN") && allowEditing;
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["config_sistema"],
@@ -29,62 +38,39 @@ export default function ConfiguracionSistema() {
   const [objetivoTotal, setObjetivoTotal] = useState(0);
   const [metaPorLider, setMetaPorLider] = useState(0);
 
-  const handleEditLider = () => {
-    if (config) {
-      setNombreCandidato(config.nombre_candidato);
-      setLugar(config.lugar);
-      setFrase(config.frase || "");
-    }
-    setIsEditingLider(true);
-  };
+  const [initialized, setInitialized] = useState(false);
 
-  const handleEditMetas = () => {
-    if (config) {
-      setObjetivoTotal(config.objetivo_total || 0);
-      setMetaPorLider(config.meta_por_lider || 0);
-    }
-    setIsEditingMetas(true);
-  };
+  // Sincronizar estados locales una sola vez al cargar o cuando cambie la config
+  if (config && !initialized) {
+    setNombreCandidato(config.nombre_candidato || "");
+    setLugar(config.lugar || "");
+    setFrase(config.frase || "");
+    setObjetivoTotal(config.objetivo_total || 0);
+    setMetaPorLider(config.meta_por_lider || 0);
+    setInitialized(true);
+  }
 
-  const handleSaveLider = async () => {
+  const handleSaveTodo = async () => {
     try {
+      setGuardando(true);
       if (!nombreCandidato || !lugar) {
-        toast.warning("Complete los campos obligatorios");
+        toast.warning("El nombre y lugar son obligatorios");
         return;
       }
       await actualizarConfiguracionAction(
         nombreCandidato, 
         lugar, 
         frase, 
-        config?.objetivo_total || 0, 
-        config?.meta_por_lider || 0
-      );
-      queryClient.invalidateQueries({ queryKey: ["config_sistema"] });
-      setIsEditingLider(false);
-      toast.success("Líder actualizado");
-    } catch (error: any) {
-      toast.error("Error: " + error.message);
-    }
-  };
-
-  const handleSaveMetas = async () => {
-    try {
-      if (!objetivoTotal || !metaPorLider) {
-        toast.warning("Complete los valores de metas");
-        return;
-      }
-      await actualizarConfiguracionAction(
-        config?.nombre_candidato || "Sin nombre", 
-        config?.lugar || "Sin lugar", 
-        config?.frase || "", 
         objetivoTotal, 
         metaPorLider
       );
       queryClient.invalidateQueries({ queryKey: ["config_sistema"] });
-      setIsEditingMetas(false);
-      toast.success("Metas actualizadas");
+      toast.success("Configuración actualizada correctamente");
+      if (onClose) onClose();
     } catch (error: any) {
-      toast.error("Error: " + error.message);
+      toast.error("Error al guardar: " + error.message);
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -96,53 +82,97 @@ export default function ConfiguracionSistema() {
   const isNew = !config;
 
   return (
-    <div className=" w-full max-w-7xl mx-auto transition-all duration-300">
-      <div className={`grid grid-cols-1 ${canEdit ? "md:grid-cols-2" : ""} gap-6 items-stretch`}>
-        
-        <div 
-          onClick={() => !isEditingLider && canEdit && handleEditLider()}
-          className={`relative flex flex-col justify-center items-center select-none text-center h-full min-h-[140px] ${!canEdit ? "max-w-3xl mx-auto w-full" : "cursor-pointer hover:bg-gray-50/50 transition-all duration-300 rounded-xl p-4 active:scale-[0.98]"}`}
-        >
-          <AnimatePresence mode="wait">
-            {isEditingLider || (isNew && canEdit) ? (
-              <motion.div 
-                key="edit-lider"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col items-center gap-3 w-full max-w-sm" 
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="w-full space-y-2">
+    <div className="w-full mx-auto max-w-2xl">
+      {canEdit ? (
+        <div className="space-y-6">
+          {/* SECCIÓN 1: INFORMACIÓN DEL CANDIDATO */}
+          <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm space-y-4">
+            <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <span className="w-3 h-3 bg-blue-600 rounded-full"></span>
+              Información del Candidato
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-gray-700 uppercase ml-1">Nombre Completo / Título</label>
+                <Input
+                  value={nombreCandidato}
+                  onChange={(e) => setNombreCandidato(e.target.value)}
+                  className="h-12 text-lg font-black text-blue-900 border-gray-300 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all bg-gray-50/30"
+                  placeholder="Escribe aqui el nombre del candidato"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-gray-700 uppercase ml-1">Frase o Lema</label>
                   <Input
-                    defaultValue={currentConfig.nombre_candidato}
-                    onChange={(e) => setNombreCandidato(e.target.value)}
-                    className="h-10 text-center font-bold text-blue-900 border-blue-100 focus:border-blue-300 transition-colors"
-                    placeholder="NOMBRE DEL CANDIDATO"
-                  />
-                  <Input
-                    defaultValue={currentConfig.frase}
+                    value={frase}
                     onChange={(e) => setFrase(e.target.value)}
-                    className="h-9 text-center text-sm italic text-gray-500 border-blue-50/50"
-                    placeholder="Frase o lema"
+                    className="h-12 text-base italic text-gray-700 border-gray-300 focus:border-blue-600 bg-gray-50/30"
+                    placeholder="Escribe aqui tu frase o lema"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-gray-700 uppercase ml-1">Municipio / Ubicación</label>
                   <Input
-                    defaultValue={currentConfig.lugar}
+                    value={lugar}
                     onChange={(e) => setLugar(e.target.value)}
-                    className="h-9 text-center text-sm font-semibold uppercase tracking-widest border-blue-50/50"
-                    placeholder="Lugar"
+                    className="h-12 text-base font-bold uppercase border-gray-300 focus:border-blue-600 bg-gray-50/30"
+                    placeholder="Escribe aqui el lugar"
                   />
                 </div>
-                <div className="flex gap-2 justify-center mt-1">
-                  <Button size="sm" variant="ghost" onClick={() => setIsEditingLider(false)} className="h-8 px-3 text-gray-400 hover:text-red-500 hover:bg-red-50">
-                    <X size={16} className="mr-1" /> Cancelar
-                  </Button>
-                  <Button size="sm" onClick={handleSaveLider} className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                    <Check size={16} className="mr-1" /> Guardar
-                  </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* SECCIÓN 2: METAS Y OBJETIVOS */}
+          {showMetas && (
+            <div className="bg-blue-50/50 p-6 rounded-2xl border-2 border-blue-200 shadow-sm space-y-4">
+              <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span className="w-3 h-3 bg-blue-600 rounded-full"></span>
+                Configuración de Metas
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-blue-800 uppercase ml-1">Objetivo Total</label>
+                  <Input
+                    type="number"
+                    value={objetivoTotal}
+                    onChange={(e) => setObjetivoTotal(Number(e.target.value))}
+                    className="h-12 text-2xl font-black text-blue-900 border-blue-300 focus:border-blue-600 bg-white text-center"
+                  />
                 </div>
-              </motion.div>
-            ) : (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-blue-800 uppercase ml-1">Meta por Líder</label>
+                  <Input
+                    type="number"
+                    value={metaPorLider}
+                    onChange={(e) => setMetaPorLider(Number(e.target.value))}
+                    className="h-12 text-2xl font-black text-blue-900 border-blue-300 focus:border-blue-600 bg-white text-center"
+                  />
+                </div>
+              </div>
+
+              {objetivoTotal > 0 && metaPorLider > 0 && (
+                <div className="mt-4 p-5 bg-blue-600 rounded-2xl shadow-lg flex items-center justify-between text-white">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase opacity-80">Requerimiento de Células</span>
+                    <span className="text-base font-bold">Líderes necesarios para la meta</span>
+                  </div>
+                  <div className="text-4xl font-black">
+                    {Math.ceil(objetivoTotal / metaPorLider)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className={`grid grid-cols-1 ${showMetas ? "md:grid-cols-2 gap-8" : ""} items-stretch`}>
+          <div className={`relative flex flex-col justify-center items-center select-none text-center h-full  pt-4 sm:pt-0 pb-2 sm:pb-4  transition-all duration-300 rounded-xl ${!showMetas ? "max-w-4xl mx-auto" : ""}`}>
+            <AnimatePresence mode="wait">
               <motion.div 
                 key="view-lider"
                 initial={{ opacity: 0 }}
@@ -160,101 +190,83 @@ export default function ConfiguracionSistema() {
                   </p>
                 )}
 
-                <div className="flex justify-center mt-3 w-full">
-                  <span className="text-sm font-bold text-blue-300 uppercase tracking-widest flex items-center gap-2">
+                <div className="flex flex-col items-center mt-4 w-full">
+                  <span className="text-sm md:text-base font-bold text-blue-300 uppercase tracking-widest flex items-center gap-2">
                     <span className="h-[1px] w-6 bg-blue-200"></span>
                     {currentConfig.lugar || "Sin lugar"}
                     <span className="h-[1px] w-6 bg-blue-200"></span>
                   </span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* COLUMNA DERECHA: METAS (SOLO ADMIN/SUPER) */}
-        {canEdit && (
-          <div 
-            onClick={() => !isEditingMetas && handleEditMetas()}
-            className="relative flex flex-col justify-center items-center select-none text-center h-full min-h-[140px] cursor-pointer hover:bg-gray-50/50 transition-all duration-300 rounded-xl p-4 active:scale-[0.98]"
-          >
-            <AnimatePresence mode="wait">
-              {isEditingMetas ? (
-                <motion.div 
-                  key="edit-metas"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex flex-col items-center gap-4 w-full max-w-sm" 
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex flex-row items-end gap-6 w-full">
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Objetivo Total</label>
-                      <Input
-                        type="number"
-                        defaultValue={currentConfig.objetivo_total || 0}
-                        onChange={(e) => setObjetivoTotal(Number(e.target.value))}
-                        className="h-9 font-bold text-blue-900 text-center border-blue-50/50"
-                      />
+                  
+                  {(rol === "SUPER" || rol === "ADMINISTRADOR" || rol === "ADMIN") && currentConfig.objetivo_total > 0 && currentConfig.meta_por_lider > 0 && (
+                    <div className="mt-2 bg-blue-50/50 px-4 py-1.5 rounded-full border border-blue-100/50">
+                      <p className="text-xs md:text-lg font-black text-blue-900/60 uppercase tracking-tight">
+                        Se requieren <span className="text-blue-600 text-sm md:text-2xl">{Math.ceil(currentConfig.objetivo_total / currentConfig.meta_por_lider)} líderes</span> para la meta
+                      </p>
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Meta por Líder</label>
-                      <Input
-                        type="number"
-                        defaultValue={currentConfig.meta_por_lider || 0}
-                        onChange={(e) => setMetaPorLider(Number(e.target.value))}
-                        className="h-9 font-bold text-blue-900 text-center border-blue-50/50"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 justify-center">
-                    <Button size="sm" variant="ghost" onClick={() => setIsEditingMetas(false)} className="h-8 px-3 text-gray-400 hover:text-red-500 hover:bg-red-50">
-                      <X size={16} className="mr-1" /> Cancelar
-                    </Button>
-                    <Button size="sm" onClick={handleSaveMetas} className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                      <Check size={16} className="mr-1" /> Guardar
-                    </Button>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="flex flex-col items-center">
-                  <motion.div 
-                    key="view-metas"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex flex-row relative w-full items-center justify-center gap-12"
-                  >
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase mb-1">Objetivo Total</span>
-                      <span className="text-xl md:text-2xl font-black text-blue-700">
-                        {currentConfig.objetivo_total ? currentConfig.objetivo_total.toLocaleString() : "0"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase mb-1">Meta por Líder</span>
-                      <span className="text-xl md:text-2xl font-black text-blue-500">
-                        {currentConfig.meta_por_lider ? currentConfig.meta_por_lider.toLocaleString() : "0"}
-                      </span>
-                    </div>
-                  </motion.div>
-                  {currentConfig.objetivo_total > 0 && currentConfig.meta_por_lider > 0 && (
-                    <motion.p 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="mt-2 text-xs font-bold text-blue-900 uppercase tracking-widest"
-                    >
-                      {Math.ceil(currentConfig.objetivo_total / currentConfig.meta_por_lider)} <span className="text-gray-500">líderes nesesarios</span>
-                    </motion.p>
                   )}
                 </div>
-              )}
+              </motion.div>
             </AnimatePresence>
-        </div>
-        )}
+          </div>
 
-      </div>
+          {showMetas && (
+            <div className="relative flex flex-col justify-center items-center select-none text-center h-full min-h-[140px] p-4 transition-all duration-300 rounded-xl cursor-default">
+              <div className="flex flex-col items-center">
+                <motion.div 
+                  key="view-metas"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-row relative w-full items-center justify-center gap-12"
+                >
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase mb-1">Objetivo Total</span>
+                    <span className="text-xl md:text-2xl font-black text-blue-700">
+                      {currentConfig.objetivo_total ? currentConfig.objetivo_total.toLocaleString() : "0"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase mb-1">Meta por Líder</span>
+                    <span className="text-xl md:text-2xl font-black text-blue-500">
+                      {currentConfig.meta_por_lider ? currentConfig.meta_por_lider.toLocaleString() : "0"}
+                    </span>
+                  </div>
+                </motion.div>
+                {currentConfig.objetivo_total > 0 && currentConfig.meta_por_lider > 0 && (
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mt-2 text-xs font-bold text-blue-900 uppercase tracking-widest"
+                  >
+                    {Math.ceil(currentConfig.objetivo_total / currentConfig.meta_por_lider)} <span className="text-gray-500">líderes nesesarios</span>
+                  </motion.p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {canEdit && (
+        <div className="mt-8 flex gap-3">
+          {onClose && (
+            <Button 
+              onClick={onClose}
+              variant="outline"
+              className="flex-1 py-4 border-gray-300 text-gray-700 font-bold uppercase tracking-widest hover:bg-gray-100 transition-all rounded-lg"
+            >
+              Cerrar
+            </Button>
+          )}
+          <Button 
+            onClick={handleSaveTodo}
+            disabled={guardando}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg shadow-md transition-all font-black uppercase tracking-widest"
+          >
+            {guardando ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,7 +5,21 @@ export const afiliadoSchema = z.object({
   apellidos: z.string().min(2, "Requerido"),
   telefono: z
     .string()
+    .min(8, "Requerido y debe tener 8 dígitos numéricos")
+    .refine((val) => val.length === 8 && /^\d+$/.test(val), {
+      message: "Debe tener 8 dígitos numéricos",
+    }),
+  telefono2: z
+    .string()
     .optional()
+    .nullable()
+    .refine((val) => !val || (val.length === 8 && /^\d+$/.test(val)), {
+      message: "Debe tener 8 dígitos numéricos",
+    }),
+  telefono3: z
+    .string()
+    .optional()
+    .nullable()
     .refine((val) => !val || (val.length === 8 && /^\d+$/.test(val)), {
       message: "Debe tener 8 dígitos numéricos",
     }),
@@ -34,6 +48,8 @@ export interface Afiliado extends AfiliadoFormData {
   conteoAfiliados?: number;
   politica?: string | null;
   sub_politica?: string | null;
+  telefono2?: string | null;
+  telefono3?: string | null;
 }
 
 export type AfiliadoFormData = z.infer<typeof afiliadoSchema>;

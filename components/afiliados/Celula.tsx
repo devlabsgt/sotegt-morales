@@ -253,6 +253,7 @@ export default function Celula({
                         onEditar={onEditar}
                         onDataChange={onDataChange}
                         rolUsuarioSesion={rolUsuarioSesion}
+                        config={config}
                       />
                     </>
                   ) : (
