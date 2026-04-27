@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import { Search, X } from "lucide-react";
 
-import EstadisticasEdades from "./estadisticas/Edades";
-import EstadisticasEmpadronados from "./estadisticas/Empadronados";
-import EstadisticasLugares from "./estadisticas/Lugares";
-import EstadisticasPoliticas from "./estadisticas/Politicas";
-import EstadisticasReligiones from "./estadisticas/Religion";
+import EstadisticasTabs from "./estadisticas/EstadisticasTabs";
 import ConfiguracionSistema from "../dashboard/ConfiguracionSistema";
 
 import Lideres from "./Lideres";
@@ -31,7 +27,7 @@ import { listarUsuariosAction } from "./actions/usuarios";
 import { obtenerAfiliadosAction } from "./actions/afiliados";
 import { obtenerLugaresAction } from "./actions/lugares";
 
-type Lugar = { id: number; nombre: string };
+type Lugar = { id: number; nombre: string; sector_id: number | null; sector_nombre: string | null };
 type Tab = "Lideres" | "Afiliados" | "Administrativos";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -338,29 +334,9 @@ export default function Ver() {
                   <X className="w-5 h-5 text-gray-500" />
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto bg-gray-50/30 py-4 md:p-8">
+              <div className="flex-1 overflow-y-auto bg-gray-50/30 py-4 md:p-6">
                 <div className="max-w-[1600px] mx-auto">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full pt-4">
-                    <div className="bg-white flex flex-col min-h-[450px]">
-                      <EstadisticasEdades afiliados={afiliados} />
-                    </div>
-
-                    <div className="bg-white flex flex-col min-h-[450px]">
-                      <EstadisticasEmpadronados afiliados={afiliados} />
-                    </div>
-
-                    <div className="bg-white flex flex-col min-h-[450px]">
-                      <EstadisticasReligiones afiliados={afiliados} />
-                    </div>
-
-                    <div className="bg-white flex flex-col min-h-[450px]">
-                      <EstadisticasPoliticas afiliados={afiliados} />
-                    </div>
-
-                    <div className="bg-white flex flex-col min-h-[450px] md:col-span-2">
-                      <EstadisticasLugares afiliados={afiliados} />
-                    </div>
-                  </div>
+                  <EstadisticasTabs afiliados={afiliados} />
                 </div>
               </div>
             </DialogPanel>
@@ -374,9 +350,9 @@ export default function Ver() {
         className="relative z-50 font-sans"
       >
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <DialogPanel className="mx-auto max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="fixed inset-0 flex items-center justify-center p-0 sm:p-4">
+          <DialogPanel className="mx-auto w-full md:w-[70vw] max-w-none bg-white rounded-none sm:rounded-3xl shadow-2xl overflow-hidden h-full sm:h-[95vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
               <h2 className="text-2xl font-black text-blue-900 flex items-center gap-2">
                 ⚙️ Configuración del Sistema
               </h2>
@@ -387,7 +363,7 @@ export default function Ver() {
                 <X className="h-6 w-6 text-gray-400" />
               </button>
             </div>
-            <div className="p-4 md:p-6 max-h-[80vh] overflow-y-auto bg-gray-50/30">
+            <div className="p-4 md:p-6 flex-1 overflow-y-auto bg-gray-50/30 flex flex-col">
               <ConfiguracionSistema onClose={() => setIsConfigOpen(false)} />
             </div>
 
@@ -422,7 +398,7 @@ export default function Ver() {
         <Dialog
           as="div"
           className="relative z-50"
-          onClose={handleCloseSignupModal}
+          onClose={handleCloseSignupModal} 
         >
           <TransitionChild
             as={Fragment}

@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit, Check, X, Loader2 } from "lucide-react";
+import { Check, Loader2, Plus, Search, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-toastify";
 import useUserData from "@/hooks/sesion/useUserData";
 import { obtenerConfiguracionAction, actualizarConfiguracionAction } from "./actions/configuracion";
+import {
+  obtenerLugaresAction,
+  obtenerSectoresAction,
+  crearLugarAction,
+  crearSectorAction,
+  type Lugar,
+  type Sector,
+} from "@/components/afiliados/forms/afiliados/catalogos";
 
 interface Props {
   showMetas?: boolean;
@@ -37,6 +45,7 @@ export default function ConfiguracionSistema({
   const [frase, setFrase] = useState("");
   const [objetivoTotal, setObjetivoTotal] = useState(0);
   const [metaPorLider, setMetaPorLider] = useState(0);
+  const [activeTab, setActiveTab] = useState<"candidato" | "metas" | "lugares">("candidato");
 
   const [initialized, setInitialized] = useState(false);
 
@@ -50,11 +59,104 @@ export default function ConfiguracionSistema({
     setInitialized(true);
   }
 
+  // ── Sectores y Lugares ──
+  const [sectores, setSectores] = useState<Sector[]>([]);
+  const [lugares, setLugares] = useState<Lugar[]>([]);
+  const [sectorQuery, setSectorQuery] = useState("");
+  const [lugarQuery, setLugarQuery] = useState("");
+  const [sectorSeleccionado, setSectorSeleccionado] = useState<number | null>(null);
+  const [creandoSector, setCreandoSector] = useState(false);
+  const [creandoLugar, setCreandoLugar] = useState(false);
+
+  useEffect(() => {
+    if (canEdit) {
+      obtenerSectoresAction().then(setSectores);
+      obtenerLugaresAction().then(setLugares);
+    }
+  }, [canEdit]);
+
+  const sectoresFiltrados = sectores.filter((s) => {
+    const queryLower = sectorQuery.toLowerCase().trim();
+    const matchSector = queryLower.match(/^sector\s+(\d+)$/);
+    if (matchSector) {
+      return s.id === parseInt(matchSector[1], 10);
+    }
+    const formatted = s.id === 0 ? s.nombre : `Sector ${s.id}: ${s.nombre}`;
+    return formatted.toLowerCase().includes(queryLower);
+  });
+  const sectorExacto = sectores.find((s) => {
+    const formatted = s.id === 0 ? s.nombre : `Sector ${s.id}: ${s.nombre}`;
+    return formatted.toLowerCase() === sectorQuery.trim().toLowerCase();
+  });
+  const puedeCrearSector = false; // Deshabilitado el crear sectores por petición del usuario
+
+  const normalize = (text: string) => 
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+  const lugaresFiltrados = lugares.filter((l) => {
+    if (sectorSeleccionado && l.sector_id !== sectorSeleccionado) return false;
+    const qNorm = normalize(lugarQuery);
+    if (qNorm === "") return true;
+    const lNorm = normalize(l.nombre);
+    return lNorm.includes(qNorm);
+  });
+  const lugarExactoEnSector = lugares.find(
+    (l) => normalize(l.nombre) === normalize(lugarQuery) && l.sector_id === sectorSeleccionado
+  );
+  const puedeCrearLugar = lugarQuery.trim().length > 1 && !lugarExactoEnSector && sectorSeleccionado;
+
+  useEffect(() => {
+    setLugarQuery("");
+  }, [sectorSeleccionado]);
+
+  const handleCrearSector = async () => {
+    if (!puedeCrearSector) return;
+    setCreandoSector(true);
+    const nuevo = await crearSectorAction(sectorQuery.trim());
+    if (nuevo) {
+      setSectores((prev) => [...prev, nuevo].sort((a, b) => {
+        if (a.id === 0) return 1;
+        if (b.id === 0) return -1;
+        return a.id - b.id;
+      }));
+      setSectorSeleccionado(nuevo.id);
+      const formatted = nuevo.id === 0 ? nuevo.nombre : `Sector ${nuevo.id}: ${nuevo.nombre}`;
+      setSectorQuery(formatted);
+      toast.success(`Sector "${nuevo.nombre}" creado`);
+    } else {
+      toast.error("Error al crear el sector");
+    }
+    setCreandoSector(false);
+  };
+
+  const handleCrearLugar = async () => {
+    if (!puedeCrearLugar || !sectorSeleccionado) return;
+    setCreandoLugar(true);
+    const nuevo = await crearLugarAction(lugarQuery.trim(), sectorSeleccionado);
+    if (nuevo) {
+      setLugares((prev) => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setLugarQuery("");
+      toast.success(`Lugar "${nuevo.nombre}" creado`);
+    } else {
+      toast.error("Error al crear el lugar");
+    }
+    setCreandoLugar(false);
+  };
+
+  const sectorObj = sectores.find((s) => s.id === sectorSeleccionado);
+  const sectorNombre = sectorObj ? (sectorObj.id === 0 ? sectorObj.nombre : `Sector ${sectorObj.id}: ${sectorObj.nombre}`) : undefined;
+
+  const isLugarDuplicado = activeTab === "lugares" && lugarQuery.trim() !== "" && lugarExactoEnSector;
+
   const handleSaveTodo = async () => {
+    if (isLugarDuplicado) {
+      toast.error("No puedes guardar porque el lugar ya existe");
+      return;
+    }
     try {
       setGuardando(true);
       if (!nombreCandidato || !lugar) {
-        toast.warning("El nombre y lugar son obligatorios");
+        toast.warning("El nombre y lugar son obligatorios", { position: "top-center" });
         return;
       }
       await actualizarConfiguracionAction(
@@ -65,10 +167,12 @@ export default function ConfiguracionSistema({
         metaPorLider
       );
       queryClient.invalidateQueries({ queryKey: ["config_sistema"] });
-      toast.success("Configuración actualizada correctamente");
-      if (onClose) onClose();
+      toast.success("Configuración actualizada correctamente", {
+        autoClose: 4000,
+        position: "top-center"
+      });
     } catch (error: any) {
-      toast.error("Error al guardar: " + error.message);
+      toast.error("Error al guardar: " + error.message, { position: "top-center" });
     } finally {
       setGuardando(false);
     }
@@ -82,10 +186,41 @@ export default function ConfiguracionSistema({
   const isNew = !config;
 
   return (
-    <div className="w-full mx-auto max-w-2xl">
+    <div className={`w-full mx-auto flex flex-col ${canEdit ? "h-full" : ""}`}>
       {canEdit ? (
-        <div className="space-y-6">
+        <div className="space-y-6 flex-1 flex flex-col min-h-0">
+          {/* TABS */}
+          <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+            <button
+              onClick={() => setActiveTab("candidato")}
+              className={`flex-1 py-2 text-[10px] sm:text-xs font-bold uppercase rounded-lg transition-all ${
+                activeTab === "candidato" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Candidato
+            </button>
+            {showMetas && (
+              <button
+                onClick={() => setActiveTab("metas")}
+                className={`flex-1 py-2 text-[10px] sm:text-xs font-bold uppercase rounded-lg transition-all ${
+                  activeTab === "metas" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Metas
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab("lugares")}
+              className={`flex-1 py-1 text-[10px] sm:text-[10px] font-bold uppercase rounded-lg transition-all whitespace-pre-line leading-tight ${
+                activeTab === "lugares" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {"Lugares y\nSectores"}
+            </button>
+          </div>
+
           {/* SECCIÓN 1: INFORMACIÓN DEL CANDIDATO */}
+          {activeTab === "candidato" && (
           <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm space-y-4">
             <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest mb-4 flex items-center gap-2">
               <span className="w-3 h-3 bg-blue-600 rounded-full"></span>
@@ -124,10 +259,20 @@ export default function ConfiguracionSistema({
                 </div>
               </div>
             </div>
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+              <Button
+                onClick={handleSaveTodo}
+                disabled={guardando}
+                className="w-full sm:w-auto px-10 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-100 transition-all"
+              >
+                {guardando ? <Loader2 className="w-5 h-5 animate-spin" /> : "Guardar Candidato"}
+              </Button>
+            </div>
           </div>
+          )}
 
           {/* SECCIÓN 2: METAS Y OBJETIVOS */}
-          {showMetas && (
+          {showMetas && activeTab === "metas" && (
             <div className="bg-blue-50/50 p-6 rounded-2xl border-2 border-blue-200 shadow-sm space-y-4">
               <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <span className="w-3 h-3 bg-blue-600 rounded-full"></span>
@@ -166,7 +311,167 @@ export default function ConfiguracionSistema({
                   </div>
                 </div>
               )}
+
+              <div className="pt-6 border-t border-blue-100 flex justify-end">
+                <Button
+                  onClick={handleSaveTodo}
+                  disabled={guardando}
+                  className="w-full sm:w-auto px-10 h-11 bg-blue-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-100 transition-all"
+                >
+                  {guardando ? <Loader2 className="w-5 h-5 animate-spin" /> : "Guardar Metas"}
+                </Button>
+              </div>
             </div>
+          )}
+
+          {/* SECCIÓN 3: GESTIÓN DE SECTORES Y LUGARES */}
+          {activeTab === "lugares" && (
+          <div className="bg-amber-50/50 p-6 rounded-2xl border-2 border-amber-200 shadow-sm space-y-5 flex-1 flex flex-col">
+            <h3 className="text-sm font-black text-amber-900 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-amber-600" />
+              Gestión de Sectores y Lugares
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0">
+              {/* SECTORES */}
+              <div className="space-y-3 flex flex-col min-h-0">
+                <label className="text-xs font-black text-amber-800 uppercase ml-1">Sectores</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={sectorQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSectorQuery(val);
+                      if (val.trim() === "") setSectorSeleccionado(null);
+                    }}
+                    placeholder="Selecciona o busca un sector..."
+                    className="w-full h-10 pl-9 pr-3 border border-amber-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 shrink-0"
+                  />
+                </div>
+
+                <div className="bg-white border border-amber-100 rounded-lg flex-1 overflow-y-auto">
+                  {sectoresFiltrados.length === 0 && !puedeCrearSector ? (
+                    <p className="text-xs text-gray-400 p-3 text-center">No hay sectores</p>
+                  ) : (
+                    <>
+                      {sectoresFiltrados.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        const formatted = s.id === 0 ? s.nombre : `Sector ${s.id}: ${s.nombre}`;
+                        setSectorSeleccionado(s.id);
+                        setSectorQuery(formatted);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
+                        sectorSeleccionado === s.id
+                          ? "bg-amber-100 text-amber-900 font-bold"
+                          : "hover:bg-amber-50 text-gray-700"
+                      }`}
+                    >
+                      {s.id === 0 ? s.nombre : `Sector ${s.id}: ${s.nombre}`}
+                      {sectorSeleccionado === s.id && <Check className="w-3 h-3 text-amber-600" />}
+                    </button>
+                  ))}
+                  {puedeCrearSector && (
+                    <button
+                      type="button"
+                      disabled={creandoSector}
+                      onClick={handleCrearSector}
+                      className="w-full text-left px-3 py-2 text-sm text-amber-700 font-bold border-t border-amber-100 flex items-center gap-2 hover:bg-amber-50"
+                    >
+                      {creandoSector ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Plus className="w-3 h-3" />
+                      )}
+                      Crear "{sectorQuery.trim()}"
+                    </button>
+                  )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* LUGARES */}
+              <div className="space-y-3 flex flex-col min-h-0">
+                <label className="text-xs font-black text-amber-800 uppercase ml-1">
+                  Lugares
+                  {sectorNombre && (
+                    <span className="text-amber-500 font-normal ml-1">— {sectorNombre}</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={lugarQuery}
+                    onChange={(e) => setLugarQuery(e.target.value)}
+                    placeholder={sectorSeleccionado ? "Buscar o crear lugar..." : "Selecciona un sector primero"}
+                    disabled={!sectorSeleccionado}
+                    className="w-full h-10 pl-9 pr-3 border border-amber-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 disabled:bg-gray-50 shrink-0"
+                  />
+                </div>
+
+                <div className="bg-white border border-amber-100 rounded-lg flex-1 overflow-y-auto">
+                  {!sectorSeleccionado ? (
+                    <p className="text-xs text-gray-400 p-3 text-center italic">
+                      Selecciona un sector para ver sus lugares
+                    </p>
+                  ) : lugaresFiltrados.length === 0 && !puedeCrearLugar ? (
+                    <p className="text-xs text-gray-400 p-3 text-center">
+                      {lugarExactoEnSector ? (
+                        <span className="text-red-500 font-bold bg-red-50 px-2 py-1 rounded-md border border-red-100">
+                          ⚠️ ESTE LUGAR YA EXISTE EN ESTE SECTOR
+                        </span>
+                      ) : "No hay lugares en este sector"}
+                    </p>
+                  ) : (
+                    <>
+                      {lugaresFiltrados.map((l) => (
+                        <div
+                          key={l.id}
+                          className="px-3 py-2 text-sm text-gray-700 flex items-center gap-2 border-b border-gray-50 last:border-0"
+                        >
+                          <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+                          {l.nombre}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {puedeCrearLugar && (
+                    <button
+                      type="button"
+                      disabled={creandoLugar}
+                      onClick={handleCrearLugar}
+                      className="w-full text-left px-3 py-2 text-sm text-amber-700 font-bold border-t border-amber-100 flex items-center gap-2 hover:bg-amber-50"
+                    >
+                      {creandoLugar ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Plus className="w-3 h-3" />
+                      )}
+                      Crear "{lugarQuery.trim()}" en {sectorNombre}
+                    </button>
+                  )}
+                </div>
+
+                {!sectorSeleccionado && (
+                  <p className="text-[9px] text-amber-600 italic">
+                    Selecciona un sector existente para poder gestionar sus lugares.
+                  </p>
+                )}
+                
+                <div className="pt-4 border-t border-amber-100 mt-4 flex flex-col gap-3">
+                  <p className="text-[10px] text-amber-700 font-medium italic text-center">
+                    * Los cambios en sectores y lugares se guardan automáticamente al crearlos.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
           )}
         </div>
       ) : (
@@ -247,26 +552,6 @@ export default function ConfiguracionSistema({
         </div>
       )}
 
-      {canEdit && (
-        <div className="mt-8 flex gap-3">
-          {onClose && (
-            <Button 
-              onClick={onClose}
-              variant="outline"
-              className="flex-1 py-4 border-gray-300 text-gray-700 font-bold uppercase tracking-widest hover:bg-gray-100 transition-all rounded-lg"
-            >
-              Cerrar
-            </Button>
-          )}
-          <Button 
-            onClick={handleSaveTodo}
-            disabled={guardando}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg shadow-md transition-all font-black uppercase tracking-widest"
-          >
-            {guardando ? "Guardando..." : "Guardar"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

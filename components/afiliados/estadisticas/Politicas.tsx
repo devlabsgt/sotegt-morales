@@ -1,158 +1,55 @@
 "use client";
 
 import {
-  PieChart,
-  Pie,
-  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
+  Cell,
 } from "recharts";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Afiliado } from "../esquemas";
+import { obtenerPoliticasConSubsAction } from "../forms/afiliados/catalogos";
 
-const COLORES = [
-  "#3b82f6",
-  "#8b5cf6",
-  "#10b981",
-  "#f59e0b",
-  "#ec4899",
-  "#6366f1",
-  "#f97316",
-  "#06b6d4",
-  "#84cc16",
+const COLORES_SUB = [
+  "#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6",
+  "#06b6d4", "#f97316", "#84cc16", "#ef4444", "#14b8a6",
 ];
 
 interface Props {
   afiliados: Afiliado[];
 }
 
-export default function Politicas({ afiliados }: Props) {
-  const [isMobile, setIsMobile] = useState(false);
+type CatalogoPolitica = { politica: string; subs: string[] };
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  const conteo: Record<string, number> = {};
-
-  let sinDefinir = 0;
-
-  afiliados.forEach((afiliado) => {
-    if (afiliado.politica && conteo.hasOwnProperty(afiliado.politica)) {
-      conteo[afiliado.politica]++;
-    } else if (afiliado.politica) {
-      conteo[afiliado.politica] = (conteo[afiliado.politica] || 0) + 1;
-    } else {
-      sinDefinir++;
-    }
-  });
-
-  const datosPadron = Object.entries(conteo)
-    .map(([name, value], index) => ({
-      name,
-      value,
-      color: COLORES[index % COLORES.length],
-    }))
-    .filter((d) => d.value > 0)
-    .sort((a, b) => b.value - a.value);
-
-  const datosGrafica =
-    datosPadron.length === 0
-      ? [{ name: "Sin registros", value: 1, color: "#e5e7eb" }]
-      : datosPadron;
-
-  const renderLabelPie = (props: any) => {
-    const { cx, cy, midAngle, innerRadius, outerRadius, percent, name, fill, value } = props;
-
-    if (name === "Sin registros") return null;
-
-    const RADIAN = Math.PI / 180;
-    const sin = Math.sin(-RADIAN * midAngle);
-    const cos = Math.cos(-RADIAN * midAngle);
-    
-    const offset = isMobile ? 5 : 10;
-    const sx = cx + (outerRadius + 2) * cos;
-    const sy = cy + (outerRadius + 2) * sin;
-    const mx = cx + (outerRadius + offset) * cos;
-    const my = cy + (outerRadius + offset) * sin;
-    const ex = mx + (cos >= 0 ? 1 : -1) * 6;
-    const ey = my;
-    const textAnchor = cos >= 0 ? "start" : "end";
-
-    if (percent === undefined || percent <= 0) return null;
-
-    const words = name.split(" ");
-    let lines = [name];
-    if (name.length > 12) {
-      lines = [];
-      let currentLine = "";
-      words.forEach((word: string) => {
-        if ((currentLine + word).length > 12) {
-          lines.push(currentLine.trim());
-          currentLine = word + " ";
-        } else {
-          currentLine += word + " ";
-        }
-      });
-      lines.push(currentLine.trim());
-    }
-
-    return (
-      <g>
-        <path
-          d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`}
-          stroke={fill}
-          fill="none"
-          strokeWidth={1.5}
-        />
-        <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
-        <text
-          x={ex + (cos >= 0 ? 1 : -1) * 4}
-          y={ey}
-          textAnchor={textAnchor}
-          dominantBaseline="central"
-          className="uppercase"
-        >
-          <tspan x={ex + (cos >= 0 ? 1 : -1) * 5} dy="-0.6em" className={isMobile ? "text-[8px]" : "text-[10px]"}>
-            <tspan fontWeight="900" fill={fill}>{value}</tspan>
-            <tspan fontWeight="normal" fill="#6b7280"> | {(percent * 100).toFixed(0)}%</tspan>
-          </tspan>
-          {lines.slice(0, 3).map((line, i) => (
-            <tspan 
-              key={i} 
-              x={ex + (cos >= 0 ? 1 : -1) * 5} 
-              dy="1.2em" 
-              className={`${isMobile ? "text-[6px]" : "text-[7px]"} font-bold fill-gray-500`}
-            >
-              {line}
-            </tspan>
-          ))}
-        </text>
-      </g>
-    );
-  };
-
+/* ── Mini chart para UNA política ─────────────────────────── */
+function MiniPolitica({
+  titulo,
+  datos,
+  total,
+}: {
+  titulo: string;
+  datos: { name: string; value: number; color: string }[];
+  total: number;
+}) {
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      if (payload[0].name === "Sin registros") return null;
-
       return (
-        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-xl text-[9px] z-50">
-          <p className="font-bold text-gray-800 mb-2 border-b pb-1 uppercase">
-            {payload[0].name}
-          </p>
-          <p className="flex items-center gap-2 mb-1">
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-xl text-xs z-50">
+          <p className="font-black text-gray-800 mb-1 uppercase text-sm">{payload[0].payload.name}</p>
+          <p className="flex items-center gap-2">
             <span
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: payload[0].payload.color }}
-            ></span>
-            <span className="text-gray-600">Total:</span>
-            <strong className="text-gray-900 text-xl">
-              {payload[0].value}
-            </strong>
+            />
+            <strong className="text-xl text-gray-900">{payload[0].value}</strong>
+            <span className="text-gray-400">
+              ({total > 0 ? ((payload[0].value / total) * 100).toFixed(0) : 0}%)
+            </span>
           </p>
         </div>
       );
@@ -161,49 +58,161 @@ export default function Politicas({ afiliados }: Props) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col min-h-[400px]">
-      <div className="flex flex-col items-start mb-4 shrink-0">
-        <h4 className="text-xs md:text-xl font-bold text-gray-800 uppercase">
-          Intereses Políticos Prioritarios
-        </h4>
-        <p className="text-sm text-gray-500 italic">
-          Distribución porcentual del grupo
-        </p>
-      </div>
+    <div className="bg-white border rounded-xl p-5 shadow-sm flex flex-col w-full">
+      <h5 className="text-sm font-black text-gray-700 uppercase mb-1">
+        {titulo}
+      </h5>
+      <p className="text-xs text-gray-400 font-bold mb-3">
+        Total: {total}
+      </p>
 
-      <div className="flex-1 min-h-[250px] w-full relative">
-        <ResponsiveContainer width="100%" height={isMobile ? 280 : 350}>
-          <PieChart>
-            <Pie
-              data={datosGrafica}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={renderLabelPie}
-              innerRadius={isMobile ? "35%" : "45%"}
-              outerRadius={isMobile ? "60%" : "75%"}
-              fill="#8884d8"
-              paddingAngle={5}
-              dataKey="value"
-            >
-              {datosGrafica.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={entry.color}
-                  strokeWidth={2}
-                  stroke="#fff"
-                />
+      <div className="w-full h-[200px] md:h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={datos}
+            margin={{ top: 20, right: 10, left: -20, bottom: 5 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="#f0f0f0"
+            />
+            <XAxis
+              dataKey="name"
+              tick={false}
+              axisLine={false}
+              tickLine={false}
+              interval={0}
+              height={10}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              allowDecimals={false}
+            />
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ fill: "#f9fafb", radius: 6 }}
+            />
+            <Bar dataKey="value" barSize={32} radius={[6, 6, 0, 0]}>
+              {datos.map((entry, i) => (
+                <Cell key={i} fill={entry.color} />
               ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-          </PieChart>
+              <LabelList
+                dataKey="value"
+                position="top"
+                fontSize={12}
+                fontWeight="900"
+                fill="#374151"
+                formatter={(v: number) => (v > 0 ? v : "")}
+              />
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 text-center text-[10px] text-gray-400 shrink-0 uppercase font-bold border-t border-gray-100 pt-4">
-        <p className="text-gray-500 mb-1">Total de registros evaluados: {afiliados.length}</p>
+      {/* Leyenda con colores para todas las pantallas */}
+      <div className="mt-3 border-t pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {datos.map((d, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <span
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ backgroundColor: d.color }}
+            />
+            <span className="text-gray-600 flex-1 leading-tight">{d.name}</span>
+            <span className="font-black text-gray-800">{d.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Componente principal ─────────────────────────────────── */
+export default function Politicas({ afiliados }: Props) {
+  const [catalogo, setCatalogo] = useState<CatalogoPolitica[]>([]);
+
+  useEffect(() => {
+    obtenerPoliticasConSubsAction().then(setCatalogo);
+  }, []);
+
+  const { chartDataMap, sinDefinir } = useMemo(() => {
+    const conteo: Record<string, Record<string, number>> = {};
+    let sinDefinir = 0;
+
+    afiliados.forEach((af) => {
+      const politica = af.politica || null;
+      if (!politica) {
+        sinDefinir++;
+        return;
+      }
+      const sub = af.sub_politica || "Sin sub-programa";
+      if (!conteo[politica]) conteo[politica] = {};
+      conteo[politica][sub] = (conteo[politica][sub] || 0) + 1;
+    });
+
+    const chartDataMap: Record<
+      string,
+      { datos: { name: string; value: number; color: string }[]; total: number }
+    > = {};
+
+    catalogo.forEach((pol) => {
+      const subsFromDB = pol.subs.length > 0 ? pol.subs : ["Sin sub-programa"];
+      const conteoForPol = conteo[pol.politica] || {};
+
+      const extraSubs = Object.keys(conteoForPol).filter(
+        (s) => !subsFromDB.includes(s)
+      );
+      const allSubs = [...subsFromDB, ...extraSubs];
+
+      let total = 0;
+      const datos = allSubs.map((sub, i) => {
+        const value = conteoForPol[sub] || 0;
+        total += value;
+        return { name: sub, value, color: COLORES_SUB[i % COLORES_SUB.length] };
+      });
+
+      chartDataMap[pol.politica] = { datos, total };
+    });
+
+    return { chartDataMap, sinDefinir };
+  }, [afiliados, catalogo]);
+
+  const allPoliticaNames = catalogo.map((c) => c.politica);
+
+  const renderChart = (key: string) => {
+    const data = chartDataMap[key] || { datos: [], total: 0 };
+    return (
+      <MiniPolitica
+        key={key}
+        titulo={key}
+        datos={data.datos}
+        total={data.total}
+      />
+    );
+  };
+
+  return (
+    <div className="w-full flex flex-col gap-6">
+      {catalogo.length === 0 ? (
+        <div className="flex items-center justify-center py-16">
+          <p className="text-sm text-gray-300 font-bold uppercase animate-pulse">
+            Cargando catálogos...
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 w-full">
+          {allPoliticaNames.map(renderChart)}
+        </div>
+      )}
+
+      <div className="text-center text-[10px] text-gray-400 uppercase font-bold border-t border-gray-100 pt-3">
+        <p className="text-gray-500 mb-1">
+          Total de registros evaluados: {afiliados.length}
+        </p>
         {sinDefinir > 0 && (
-          <span>(Sin política seleccionada: {sinDefinir})</span>
+          <span>(Sin programa seleccionado: {sinDefinir})</span>
         )}
       </div>
     </div>

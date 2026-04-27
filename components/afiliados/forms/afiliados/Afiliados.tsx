@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Plus, Loader2, Check, Save, AlertCircle } from "lucide-react";
@@ -22,7 +22,6 @@ import {
   obtenerSubPoliticasAction,
   crearSubPoliticaAction,
   obtenerLugaresAction,
-  crearLugarAction,
   type Politica,
   type SubPolitica,
   type Lugar,
@@ -56,14 +55,16 @@ function ComboSearch({
   onCreateNew,
   disabled = false,
   loading = false,
+  groupKey,
 }: {
   placeholder: string;
-  items: { id: number; nombre: string }[];
+  items: { id: number; nombre: string; [key: string]: any }[];
   value: number | null | undefined;
   onSelect: (id: number) => void;
   onCreateNew?: (nombre: string) => Promise<void>;
   disabled?: boolean;
   loading?: boolean;
+  groupKey?: string;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -84,9 +85,27 @@ function ComboSearch({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const filtered = items.filter((i) =>
-    i.nombre.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = items.filter((i: any) => {
+    const queryLower = query.toLowerCase().trim();
+    if (i.nombre.toLowerCase().includes(queryLower)) return true;
+    
+    if (groupKey) {
+      const baseGroup = i[groupKey] ? String(i[groupKey]).toLowerCase() : "";
+      if (baseGroup.includes(queryLower)) return true;
+      
+      const id = i.sector_id || 0;
+      
+      // Prevenir que "sector 1" coincida con "sector 11"
+      const matchSector = queryLower.match(/^sector\s+(\d+)$/);
+      if (matchSector) {
+        if (id === parseInt(matchSector[1], 10)) return true;
+      } else {
+        const formattedGroup = id === 0 ? baseGroup : `sector ${id}: ${baseGroup}`.toLowerCase();
+        if (formattedGroup.includes(queryLower)) return true;
+      }
+    }
+    return false;
+  });
   const exactMatch = items.find(
     (i) => i.nombre.toLowerCase() === query.trim().toLowerCase()
   );
@@ -99,6 +118,31 @@ function ComboSearch({
     setCreating(false);
     setOpen(false);
   };
+
+  // Agrupar ítems por groupKey si se proporciona
+  const grouped = useMemo(() => {
+    if (!groupKey) return null;
+    const map: Record<string, typeof filtered> = {};
+    const sectorIdMap: Record<string, number> = {};
+    filtered.forEach((item: any) => {
+      const baseName = item[groupKey] || "Sin Clasificar";
+      const id = item.sector_id || 0;
+      const group = id === 0 ? baseName : `Sector ${id}: ${baseName}`;
+      
+      if (!map[group]) map[group] = [];
+      map[group].push(item);
+      sectorIdMap[group] = id;
+    });
+
+    // Ordenar los grupos por ID, dejando el ID 0 al final
+    return Object.entries(map).sort(([nameA], [nameB]) => {
+      const idA = sectorIdMap[nameA] || 0;
+      const idB = sectorIdMap[nameB] || 0;
+      if (idA === 0 && idB !== 0) return 1;
+      if (idB === 0 && idA !== 0) return -1;
+      return idA - idB;
+    });
+  }, [filtered, groupKey]);
 
   return (
     <div ref={ref} className="relative w-full">
@@ -128,23 +172,46 @@ function ComboSearch({
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+            className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto"
           >
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between group"
-                onClick={() => {
-                  onSelect(item.id);
-                  setQuery(item.nombre);
-                  setOpen(false);
-                }}
-              >
-                {item.nombre}
-                {value === item.id && <Check className="w-3 h-3 text-blue-600" />}
-              </button>
-            ))}
+            {grouped
+              ? grouped.map(([group, groupItems]) => (
+                  <div key={group}>
+                    <div className="sticky top-0 bg-blue-50 px-3 py-1.5 text-[10px] font-black text-blue-700 uppercase border-b border-blue-100 z-10">
+                      📍 {group}
+                    </div>
+                    {groupItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full text-left px-3 pl-5 py-2 text-sm hover:bg-blue-50 flex items-center justify-between group"
+                        onClick={() => {
+                          onSelect(item.id);
+                          setQuery(item.nombre);
+                          setOpen(false);
+                        }}
+                      >
+                        {item.nombre}
+                        {value === item.id && <Check className="w-3 h-3 text-blue-600" />}
+                      </button>
+                    ))}
+                  </div>
+                ))
+              : filtered.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between group"
+                    onClick={() => {
+                      onSelect(item.id);
+                      setQuery(item.nombre);
+                      setOpen(false);
+                    }}
+                  >
+                    {item.nombre}
+                    {value === item.id && <Check className="w-3 h-3 text-blue-600" />}
+                  </button>
+                ))}
             {canCreate && (
               <button
                 type="button"
@@ -349,15 +416,7 @@ export default function AfiliadosForm({
     }
   };
 
-  const handleCrearLugar = async (nombre: string) => {
-    const nuevo = await crearLugarAction(nombre);
-    if (nuevo) {
-      setLugares((prev) => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setLugarSeleccionado(nuevo.id);
-      setValue("lugar_id", nuevo.id);
-      toast.success("Lugar creado");
-    }
-  };
+
 
   const onSubmit = async (formData: any) => {
     const datosProcesados = {
@@ -631,11 +690,14 @@ export default function AfiliadosForm({
                     setLugarSeleccionado(id);
                     setValue("lugar_id", id);
                   }}
-                  onCreateNew={esAdmin ? handleCrearLugar : undefined}
+                  groupKey="sector_nombre"
                 />
                 {errors.lugar_id && (
                   <p className="text-[10px] text-red-500">{errors.lugar_id.message}</p>
                 )}
+                <p className="text-[9px] text-gray-400 italic">
+                  Si el lugar no existe, comunícate con un administrador para crearlo.
+                </p>
               </div>
 
               {/* POLÍTICA PRINCIPAL */}
@@ -847,6 +909,23 @@ export default function AfiliadosForm({
                 {...register("lider_id")}
                 value={liderPredefinidoId || ""}
               />
+
+              {/* CONDICIÓN ESPECIAL */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-teal-600 uppercase block">
+                  Condición Especial (Opcional)
+                </label>
+                <select
+                  {...register("condicion_especial")}
+                  className="w-full h-10 px-3 border rounded-md text-sm bg-white"
+                >
+                  <option value="">Ninguna</option>
+                  <option value="Discapacidad">Discapacidad</option>
+                  <option value="Desnutrición">Desnutrición</option>
+                  <option value="Adulto mayor">Adulto mayor</option>
+                  <option value="Madre soltera">Madre soltera</option>
+                </select>
+              </div>
 
               <div className="flex justify-between items-center pt-4 border-t mt-2">
                 {step === 2 && !isEditMode && (

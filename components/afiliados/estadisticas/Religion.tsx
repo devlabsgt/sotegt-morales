@@ -105,7 +105,7 @@ export default function Religiones({ afiliados }: Props) {
           dominantBaseline="central"
           className="uppercase"
         >
-          <tspan x={ex + (cos >= 0 ? 1 : -1) * 5} dy="-0.6em" className={isMobile ? "text-[8px]" : "text-[10px]"}>
+          <tspan x={ex + (cos >= 0 ? 1 : -1) * 5} dy="-0.6em" className={isMobile ? "text-[8px]" : "text-[14px]"}>
             <tspan fontWeight="900" fill={fill}>{value}</tspan>
             <tspan fontWeight="normal" fill="#6b7280"> | {(percent * 100).toFixed(0)}%</tspan>
           </tspan>
@@ -113,8 +113,8 @@ export default function Religiones({ afiliados }: Props) {
             <tspan 
               key={i} 
               x={ex + (cos >= 0 ? 1 : -1) * 5} 
-              dy="1.2em" 
-              className={`${isMobile ? "text-[6px]" : "text-[7px]"} font-bold fill-gray-500`}
+              dy={isMobile ? "1.2em" : "1.3em"} 
+              className={`${isMobile ? "text-[6px]" : "text-[11px]"} font-bold fill-gray-500`}
             >
               {line}
             </tspan>

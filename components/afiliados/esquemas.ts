@@ -57,6 +57,7 @@ export const afiliadoSchema = z.object({
   no_padron: z.string().min(1, "El No. de Padrón es obligatorio"),
   religion: z.string().min(1, "Religión es requerida"),
   religion_otra: z.string().optional(),
+  condicion_especial: z.string().optional().nullable(),
 });
 
 // Definimos AfiliadoFormData directamente desde Zod
@@ -68,9 +69,12 @@ export interface Afiliado extends AfiliadoFormData {
   lider_nombre: string | null;
   lider_email: string | null;
   lugar_nombre: string | null;
+  sector_nombre?: string | null;
+  sector_id?: number | null;
   conteoAfiliados?: number;
   politica?: string | null;
   sub_politica?: string | null;
   telefono2?: string | null;
   telefono3?: string | null;
+  condicion_especial?: string | null;
 }

@@ -4,11 +4,7 @@ import { useState, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import type { Afiliado, Lider } from "./esquemas";
 import Tabla from "./Tabla";
-import EstadisticasEdades from "./estadisticas/Edades";
-import EstadisticasEmpadronados from "./estadisticas/Empadronados";
-import EstadisticasLugares from "./estadisticas/Lugares";
-import EstadisticasPoliticas from "./estadisticas/Politicas";
-import EstadisticasReligiones from "./estadisticas/Religion";
+import EstadisticasTabs from "./estadisticas/EstadisticasTabs";
 import TextoAnimado from "@/components/ui/Typeanimation";
 import Image from "next/image";
 import { Dialog, TransitionChild, DialogPanel } from "@headlessui/react";
@@ -257,24 +253,8 @@ export default function Celula({
                       />
                     </>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 w-full pt-4">
-                      <div className="bg-white border rounded-2xl p-6 shadow-sm min-h-[400px] flex flex-col">
-                        <EstadisticasEmpadronados
-                          afiliados={afiliadosDelLider}
-                        />
-                      </div>
-                      <div className="bg-white border rounded-2xl p-6 shadow-sm min-h-[400px] flex flex-col">
-                        <EstadisticasReligiones afiliados={afiliadosDelLider} />
-                      </div>
-                      <div className="bg-white border rounded-2xl p-6 shadow-sm min-h-[400px] flex flex-col">
-                        <EstadisticasEdades afiliados={afiliadosDelLider} />
-                      </div>
-                      <div className="bg-white border rounded-2xl p-6 shadow-sm min-h-[400px] flex flex-col">
-                        <EstadisticasPoliticas afiliados={afiliadosDelLider} />
-                      </div>
-                      <div className="bg-white border rounded-2xl p-6 shadow-sm min-h-[400px] flex flex-col md:col-span-2">
-                        <EstadisticasLugares afiliados={afiliadosDelLider} />
-                      </div>
+                    <div className="w-full pt-4">
+                      <EstadisticasTabs afiliados={afiliadosDelLider} />
                     </div>
                   )}
                 </div>

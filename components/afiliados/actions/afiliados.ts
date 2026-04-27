@@ -27,7 +27,7 @@ export async function obtenerAfiliadosAction(liderId?: string) {
   ];
 
   // Ejecución en paralelo de las consultas de apoyo
-  const [perfilesRes, lugaresRes, politicasRes] = await Promise.all([
+  const [perfilesRes, lugaresRes, politicasRes, subPoliticasRes, sectoresRes] = await Promise.all([
     liderIds.length > 0
       ? supabase
           .from("info_perfil")
@@ -36,33 +36,47 @@ export async function obtenerAfiliadosAction(liderId?: string) {
       : { data: [] },
 
     lugarIds.length > 0
-      ? supabase.from("lugares").select("id, nombre").in("id", lugarIds)
+      ? supabase.from("lugares").select("id, nombre, sector_id").in("id", lugarIds)
       : { data: [] },
 
-    supabase.from("sis_politicas").select("id, nombre")
+    supabase.from("sis_politicas").select("id, nombre"),
+    supabase.from("sis_politicas_sub").select("id, nombre"),
+    supabase.from("sectores").select("id, nombre"),
   ]);
 
   const perfiles = perfilesRes.data || [];
   const lugares = lugaresRes.data || [];
   const politicas = politicasRes.data || [];
+  const subPoliticas = subPoliticasRes.data || [];
+  const sectores = sectoresRes.data || [];
 
   const perfilMap = new Map(perfiles.map((p: any) => [p.user_id, p]));
   const lugarMap = new Map(lugares.map((l: any) => [l.id, l.nombre]));
+  const lugarSectorMap = new Map(lugares.map((l: any) => [l.id, l.sector_id]));
+  const sectorMap = new Map(sectores.map((s: any) => [s.id, s.nombre]));
   const politicaMap = new Map(politicas.map((p: any) => [p.id, p.nombre]));
+  const subPoliticaMap = new Map(subPoliticas.map((sp: any) => [sp.id, sp.nombre]));
 
   return afiliados.map((afiliado: any) => {
     const perfilLider = afiliado.lider_id
       ? perfilMap.get(afiliado.lider_id)
       : null;
 
+    const sectorId = afiliado.lugar_id ? lugarSectorMap.get(afiliado.lugar_id) : null;
+
     return {
       ...afiliado,
       lugar_nombre: afiliado.lugar_id
         ? lugarMap.get(afiliado.lugar_id) || null
         : null,
+      sector_nombre: sectorId ? sectorMap.get(sectorId) || null : null,
+      sector_id: sectorId || null,
       politica: afiliado.politica_id 
         ? politicaMap.get(afiliado.politica_id) 
         : afiliado.politica,
+      sub_politica: afiliado.sub_politica_id
+        ? subPoliticaMap.get(afiliado.sub_politica_id)
+        : afiliado.sub_politica || null,
       lider_nombre: perfilLider
         ? `${perfilLider.nombres} ${perfilLider.apellidos}`
         : "Sin Líder",

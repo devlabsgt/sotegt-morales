@@ -26,6 +26,7 @@ export function useAfiliadosForm() {
       politica_id: 0 as any,
       sub_politica_id: 0 as any,
       no_padron: "",
+      condicion_especial: null,
     },
   });
 }
@@ -55,6 +56,7 @@ export function useInicializarFormulario(
           no_padron: afiliadoAEditar.no_padron || "",
           politica_id: (afiliadoAEditar as any).politica_id || null,
           sub_politica_id: (afiliadoAEditar as any).sub_politica_id || null,
+          condicion_especial: afiliadoAEditar.condicion_especial || null,
         } as AfiliadoFormData);
 
         const currentLider = lideres.find(
@@ -84,6 +86,7 @@ export function useInicializarFormulario(
           sub_politica_id: 0 as any,
           religion: "",
           religion_otra: "",
+          condicion_especial: null,
         });
 
         if (liderPredefinidoId) {
