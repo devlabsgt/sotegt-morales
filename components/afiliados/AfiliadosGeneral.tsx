@@ -93,7 +93,7 @@ export default function AfiliadosGeneral({
           ? `${lider.nombres} ${lider.apellidos}`
           : "Miembros sin Líder asignado";
         const colorClase = lider
-          ? lider.rol === "SUPER"
+          ? (lider.rol === "SUPER" || lider.rol === "ADMINISTRADOR" || lider.rol === "ADMIN")
             ? "bg-indigo-50 border-indigo-200"
             : "bg-gray-50 border-gray-200"
           : "bg-red-50 border-red-200";

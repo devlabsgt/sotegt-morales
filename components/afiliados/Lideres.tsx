@@ -79,7 +79,7 @@ export default function Lideres({
 
   const isLider = rolUsuarioSesion === "LIDER";
   const esAdminOSuper =
-    rolUsuarioSesion === "ADMINISTRADOR" || rolUsuarioSesion === "SUPER";
+    rolUsuarioSesion === "ADMINISTRADOR" || rolUsuarioSesion === "SUPER" || rolUsuarioSesion === "ADMIN";
   
   const { data: config } = useQuery({
     queryKey: ["config_sistema"],

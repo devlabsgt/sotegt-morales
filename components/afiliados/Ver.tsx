@@ -13,6 +13,7 @@ import Lideres from "./Lideres";
 import AfiliadosGeneral from "./AfiliadosGeneral";
 import Form from "./forms/afiliados/Afiliados";
 import Celula from "./Celula";
+import Padron from "./Padron";
 import { SignupForm } from "@/components/admin/sign-up/SignForm";
 import type { Afiliado, Lider } from "./esquemas";
 import useUserData from "@/hooks/sesion/useUserData";
@@ -28,13 +29,13 @@ import { obtenerAfiliadosAction } from "./actions/afiliados";
 import { obtenerLugaresAction } from "./actions/lugares";
 
 type Lugar = { id: number; nombre: string; sector_id: number | null; sector_nombre: string | null };
-type Tab = "Lideres" | "Afiliados" | "Administrativos";
+type Tab = "Lideres" | "Afiliados" | "Padron" | "Administrativos";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export default function Ver() {
   const { rol, cargando: cargandoRol, userId } = useUserData();
-  const esAdminOSuper = rol === "ADMINISTRADOR" || rol === "SUPER";
+  const esAdminOSuper = rol === "ADMINISTRADOR" || rol === "SUPER" || rol === "ADMIN";
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -77,10 +78,11 @@ export default function Ver() {
       queryClient.invalidateQueries({ queryKey: ["afiliados-gl"] });
 
       // Primero definimos los roles de administrativos
-      const arrAdmins = rol === "SUPER" ? ["ADMINISTRADOR", "SUPER"] : ["ADMINISTRADOR"];
+      const esCualquierAdmin = rol === "SUPER" || rol === "ADMINISTRADOR" || rol === "ADMIN";
+      const arrAdmins = ["ADMINISTRADOR", "SUPER", "ADMIN"];
       
       // Hacemos una SOLA llamada al backend para todos los roles permitidos
-      const pTodosUsuarios = listarUsuariosAction(["LIDER", ...arrAdmins]);
+      const pTodosUsuarios = listarUsuariosAction(esCualquierAdmin ? ["LIDER", ...arrAdmins] : ["LIDER"]);
       const pLugares = obtenerLugaresAction();
 
       const [todosUsuariosData, lugaresData] = await Promise.all([
@@ -95,7 +97,11 @@ export default function Ver() {
 
       // Separamos en memoria líderes y administrativos
       const allLideres = allUsers.filter(u => u.rol === "LIDER");
-      const allAdmins = allUsers.filter(u => arrAdmins.includes(u.rol));
+      // SUPER ve todos los admins; ADMIN/ADMINISTRADOR solo ven ADMIN y ADMINISTRADOR (no SUPER)
+      const rolesVisibles = rol === "SUPER" 
+        ? arrAdmins 
+        : ["ADMIN", "ADMINISTRADOR"];
+      const allAdmins = allUsers.filter(u => rolesVisibles.includes(u.rol));
       
       if (rol === "LIDER" && userId) {
         const myLider = allLideres.find((l) => l.id === userId);
@@ -259,13 +265,21 @@ export default function Ver() {
           >
             ✅ Miembros
           </button>
-          {(rol === "ADMINISTRADOR" || rol === "SUPER") && (
-            <button
-              onClick={() => setActiveTab("Administrativos")}
-              className={`px-4 py-2 text-base font-semibold ${activeTab === "Administrativos" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
-            >
-              🛡️ Administrativos
-            </button>
+          {(rol === "ADMINISTRADOR" || rol === "SUPER" || rol === "ADMIN") && (
+            <>
+              <button
+                onClick={() => setActiveTab("Padron")}
+                className={`px-4 py-2 text-base font-semibold ${activeTab === "Padron" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+              >
+                📋 Padrón
+              </button>
+              <button
+                onClick={() => setActiveTab("Administrativos")}
+                className={`px-4 py-2 text-base font-semibold ${activeTab === "Administrativos" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+              >
+                🛡️ Administrativos
+              </button>
+            </>
           )}
         </div>
 
@@ -290,6 +304,7 @@ export default function Ver() {
             searchTerm={searchTerm}
           />
         )}
+        {activeTab === "Padron" && <Padron />}
         {activeTab === "Administrativos" && (
           <Lideres
             lideres={administrativos}

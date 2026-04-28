@@ -117,6 +117,23 @@ export function LoginForm() {
         </motion.div>
       </motion.div>
 
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.6 }}
+        className="flex flex-col items-center mb-8 w-full text-center"
+      >
+        <h2 className="text-2xl md:text-4xl font-bold leading-tight bg-gradient-to-r from-blue-800 via-blue-400 to-blue-800 bg-[length:200%_auto] text-transparent bg-clip-text animate-text-shine">
+          Nestor Magaña, Alcalde
+        </h2>
+        <span className="text-sm md:text-base font-bold text-blue-500 uppercase tracking-widest flex items-center gap-2 mt-2">
+          <span className="h-[2px] w-8 bg-blue-400"></span>
+          Morales, Izabal
+          <span className="h-[2px] w-8 bg-blue-400"></span>
+        </span>
+      </motion.div>
+
+
       <form
         ref={formRef}
         action={handleFormAction}

@@ -1,12 +1,12 @@
 {
-  "name": "SOTE - Sistema de Organización Territorial Estratégica",
-  "short_name": "SOTE",
+  "name": "SOTE - Sistema de Organización Territorial Estratégica, Morales, Izabal",
+  "short_name": "SOTE Morales, Izabal",
   "theme_color": "#1e40af",
   "background_color": "#ffffff",
   "display": "standalone",
   "scope": "/",
   "start_url": "/",
-  "description": "Sistema de Gestión y Organización territorial Estratégica",
+  "description": "Sistema de Gestión y Organización territorial Estratégica, Morales, Izabal",
   "orientation": "portrait",
   "icons": [
     {

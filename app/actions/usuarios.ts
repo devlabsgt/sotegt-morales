@@ -9,15 +9,35 @@ import { revalidatePath } from "next/cache";
 export const deleteUserAccountAction = async (userId: string) => {
   if (!userId) return { error: "ID de usuario no proporcionado." };
 
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  try {
+    // 1. Eliminar logs asociados para evitar errores de llave foránea
+    await supabaseAdmin.from("logs").delete().eq("user_id", userId);
 
-  if (error) {
-    console.error("Error al eliminar usuario (admin):", error.message);
-    return { error: error.message };
+    // 2. Eliminar perfil asociado
+    const { error: perfilError } = await supabaseAdmin
+      .from("info_perfil")
+      .delete()
+      .eq("user_id", userId);
+
+    if (perfilError) {
+      console.error("Error al eliminar perfil de usuario:", perfilError.message);
+      // Continuamos intentando eliminar la cuenta de auth de todos modos
+    }
+
+    // 3. Eliminar la cuenta de autenticación
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (error) {
+      console.error("Error al eliminar usuario (auth):", error.message);
+      return { error: error.message };
+    }
+
+    revalidatePath("/dashboard/usuarios");
+    return { success: "Usuario eliminado correctamente." };
+  } catch (err: any) {
+    console.error("Error inesperado al eliminar cuenta:", err);
+    return { error: "Error inesperado al eliminar la cuenta." };
   }
-
-  revalidatePath("/dashboard/usuarios");
-  return { success: "Usuario eliminado correctamente." };
 };
 
 export const updateUsuarioAction = async (formData: FormData) => {
