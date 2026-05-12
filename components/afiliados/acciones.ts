@@ -7,7 +7,7 @@ import { deleteAfiliadoAction } from '@/app/actions/afiliados';
 const COLOR_CANCELAR = '#DC3545';
 
 export const eliminar = async (registro: Afiliado | Lider, onEliminado: () => void) => {
-    
+
     const nombreCompleto = `${registro.nombres} ${registro.apellidos}`;
     const esLider = 'email' in registro;
     const tabla = esLider ? ' (LÍDER DE CÉLULA)' : '';
@@ -33,10 +33,10 @@ export const eliminar = async (registro: Afiliado | Lider, onEliminado: () => vo
             }
         } else {
             const result: any = await deleteAfiliadoAction(registro.id);
-            
+
             if (result.error) {
-                mensajeError = typeof result.error === 'string' 
-                    ? result.error 
+                mensajeError = typeof result.error === 'string'
+                    ? result.error
                     : result.error.message;
             }
         }
@@ -45,7 +45,7 @@ export const eliminar = async (registro: Afiliado | Lider, onEliminado: () => vo
             toast.error('No se pudo eliminar el registro.');
             console.error('Error de eliminación:', mensajeError);
         } else {
-            toast.success(`"${nombreCompleto}" ha sido eliminado.`); 
+            toast.success(`"${nombreCompleto}" ha sido eliminado.`);
             onEliminado();
         }
     }

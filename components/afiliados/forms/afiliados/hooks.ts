@@ -18,6 +18,8 @@ export function useAfiliadosForm() {
       nombres: "",
       apellidos: "",
       telefono: "",
+      telefono2: "",
+      telefono3: "",
       dpi: "",
       nacimiento: "",
       sexo: "M",
@@ -26,7 +28,12 @@ export function useAfiliadosForm() {
       politica_id: 0 as any,
       sub_politica_id: 0 as any,
       no_padron: "",
+      religion: "",
+      religion_otra: "",
       condicion_especial: null,
+      familiar_de: null,
+      beneficio_id: null,
+      empadronado: false,
     },
   });
 }
@@ -41,6 +48,7 @@ export function useInicializarFormulario(
   setShowLiderSuggestions: (val: boolean) => void,
   isFirstMember: boolean = false,
   datosLider: any | null = null,
+  familiarDeId: string | null = null,
 ) {
   useEffect(() => {
     if (isOpen) {
@@ -57,6 +65,7 @@ export function useInicializarFormulario(
           politica_id: (afiliadoAEditar as any).politica_id || null,
           sub_politica_id: (afiliadoAEditar as any).sub_politica_id || null,
           condicion_especial: afiliadoAEditar.condicion_especial || null,
+          familiar_de: afiliadoAEditar.familiar_de || null,
         } as AfiliadoFormData);
 
         const currentLider = lideres.find(
@@ -76,6 +85,8 @@ export function useInicializarFormulario(
           nombres: nombresIniciales,
           apellidos: apellidosIniciales,
           telefono: telefonoInicial,
+          telefono2: "",
+          telefono3: "",
           dpi: "",
           lider_id: liderPredefinidoId || null,
           nacimiento: "",
@@ -87,6 +98,9 @@ export function useInicializarFormulario(
           religion: "",
           religion_otra: "",
           condicion_especial: null,
+          familiar_de: familiarDeId || null,
+          beneficio_id: null,
+          empadronado: false,
         });
 
         if (liderPredefinidoId) {
@@ -98,7 +112,7 @@ export function useInicializarFormulario(
       }
       setShowLiderSuggestions(false);
     }
-  }, [isOpen, afiliadoAEditar, liderPredefinidoId, methods, lideres, setLiderSearch, setShowLiderSuggestions, isFirstMember, datosLider]);
+  }, [isOpen, afiliadoAEditar, liderPredefinidoId, methods, lideres, setLiderSearch, setShowLiderSuggestions, isFirstMember, datosLider, familiarDeId]);
 }
 
 export function useBuscadorLider(lideres: Lider[], setValue: any) {
@@ -155,3 +169,4 @@ export function useClickOutside(callback: () => void) {
   }, [callback]);
   return ref;
 }
+

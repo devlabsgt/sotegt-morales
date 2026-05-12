@@ -120,11 +120,10 @@ export default function Padron() {
                       {persona.nombre_completo}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                        persona.genero === 'M' || persona.genero === 'MASCULINO' 
-                          ? 'bg-blue-100 text-blue-800' 
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${persona.genero === 'M' || persona.genero === 'MASCULINO'
+                          ? 'bg-blue-100 text-blue-800'
                           : 'bg-pink-100 text-pink-800'
-                      }`}>
+                        }`}>
                         {persona.genero}
                       </span>
                     </td>
@@ -149,7 +148,7 @@ export default function Padron() {
             >
               <ChevronLeft className="h-5 w-5" />
             </Button>
-            
+
             <div className="flex items-center justify-center min-w-[120px] h-12 px-6 rounded-2xl border border-gray-100 shadow-sm bg-white">
               <span className="text-xl font-black text-slate-900">
                 {page} / {totalPages}
@@ -187,3 +186,4 @@ export default function Padron() {
     </div>
   );
 }
+

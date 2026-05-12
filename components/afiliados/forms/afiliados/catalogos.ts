@@ -85,13 +85,36 @@ export async function obtenerSectoresAction(): Promise<Sector[]> {
     .from("sectores")
     .select("id, nombre");
   if (error) return [];
-  
+
   const sectores = data ?? [];
   return sectores.sort((a, b) => {
     if (a.id === 0) return 1;
     if (b.id === 0) return -1;
     return a.id - b.id;
   });
+}
+
+export type Beneficio = { id: number; nombre: string };
+
+export async function obtenerBeneficiosAction(): Promise<Beneficio[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("beneficios")
+    .select("id, nombre")
+    .order("nombre");
+  if (error) return [];
+  return data ?? [];
+}
+
+export async function crearBeneficioAction(nombre: string): Promise<Beneficio | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("beneficios")
+    .insert({ nombre: nombre.trim() })
+    .select("id, nombre")
+    .single();
+  if (error) return null;
+  return data;
 }
 
 export async function crearSectorAction(nombre: string): Promise<Sector | null> {
@@ -124,3 +147,4 @@ export async function obtenerPoliticasConSubsAction(): Promise<
       .map((s: any) => s.nombre),
   }));
 }
+

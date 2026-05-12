@@ -8,7 +8,7 @@ import EstadisticasTabs from "./estadisticas/EstadisticasTabs";
 import TextoAnimado from "@/components/ui/Typeanimation";
 import Image from "next/image";
 import { Dialog, TransitionChild, DialogPanel } from "@headlessui/react";
-import { Users, BarChart3, X, UserPlus, Search, Loader2 } from "lucide-react";
+import { Users, BarChart3, X, UserPlus, Search, Loader2, Heart } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { obtenerAfiliadosAction } from "./actions/afiliados";
 import { obtenerConfiguracionAction } from "../dashboard/actions/configuracion";
@@ -18,7 +18,7 @@ interface Props {
   onClose: () => void;
   lider: Lider | null;
   onEditar: (afiliado: Afiliado) => void;
-  onAnadirAfiliado: (liderId: string, isFirstMember?: boolean) => void;
+  onAnadirAfiliado: (liderId: string, isFirstMember?: boolean, familiarDeId?: string) => void;
   onDataChange: () => void;
   rolUsuarioSesion: string;
 }
@@ -50,17 +50,10 @@ export default function Celula({
 
   if (!lider) return null;
 
-  const afiliadosFiltrados =
-    busqueda.length >= 2
-      ? afiliadosDelLider.filter(
-          (a: Afiliado) =>
-            a.nombres.toLowerCase().includes(busqueda.toLowerCase()) ||
-            a.apellidos.toLowerCase().includes(busqueda.toLowerCase()) ||
-            a.dpi.includes(busqueda),
-        )
-      : afiliadosDelLider;
-
-  const totalEnGrupo = afiliadosDelLider.length;
+  const liderAfiliado =
+    afiliadosDelLider.find((a: Afiliado) => !!a.es_lider) ??
+    (afiliadosDelLider.length > 0 ? afiliadosDelLider[0] : null);
+  const totalEnGrupo = afiliadosDelLider.filter((a: Afiliado) => !a.familiar_de).length;
   const objetivo = config?.meta_por_lider || 0;
   const progreso = Math.min((totalEnGrupo / objetivo) * 100, 100);
 
@@ -74,7 +67,7 @@ export default function Celula({
   } else if (totalEnGrupo === 1) {
     mensaje = `🎉 ¡Líder registrado! Añade a tus familiares y amigos.`;
   } else if (progreso <= 25) {
-    mensaje = `🌱 ¡Apenas comenzamos! Somos ${totalEnGrupo} de ${objetivo}.`;
+    mensaje = `⚡ ¡Apenas comenzamos! Somos ${totalEnGrupo} de ${objetivo}.`;
     colorBarra = "bg-blue-600";
     gifUrl = "/gif/afiliados/gif1.gif";
   } else if (progreso <= 50) {
@@ -91,14 +84,25 @@ export default function Celula({
     gifUrl = "/gif/afiliados/gif5.gif";
   }
 
+
+  const afiliadosFiltrados =
+    busqueda.length >= 2
+      ? afiliadosDelLider.filter(
+        (a: Afiliado) =>
+          a.nombres.toLowerCase().includes(busqueda.toLowerCase()) ||
+          a.apellidos.toLowerCase().includes(busqueda.toLowerCase()) ||
+          a.dpi.includes(busqueda),
+      )
+      : afiliadosDelLider;
+
   const TABS = [
     { id: "miembros", label: "Miembros", icon: Users },
-    { id: "estadisticas", label: "Estadísticas Generales", icon: BarChart3 },
+    { id: "estadisticas", label: "Estadísticas", icon: BarChart3 },
   ];
 
   return (
     <Fragment>
-      <Dialog open={isOpen} onClose={() => {}} className="relative z-50">
+      <Dialog open={isOpen} onClose={() => { }} className="relative z-50">
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm"
           aria-hidden="true"
@@ -115,22 +119,32 @@ export default function Celula({
           >
             <DialogPanel className="w-screen h-screen bg-white flex flex-col overflow-hidden">
               {/* HEADER */}
-              <div className="flex justify-between items-center px-2 py-3 border-b shrink-0 bg-white sticky top-0 z-20">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm md:text-xl font-bold uppercase truncate">
-                    {lider.nombres} {lider.apellidos}
-                  </h3>
-                  {isLoading && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+              <div className="flex justify-between items-center px-3 py-2.5 border-b shrink-0 bg-white sticky top-0 z-20">
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm md:text-base font-black uppercase truncate text-gray-900 leading-tight">
+                      {lider.nombres} {lider.apellidos}
+                    </h3>
+                    {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />}
+                  </div>
+                  {liderAfiliado?.created_at && (
+                    <p className="text-[10px] text-gray-400 font-medium leading-tight mt-0.5">
+                      Afiliado el{" "}
+                      {new Date(liderAfiliado.created_at).toLocaleDateString("es-GT", {
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
                 </div>
 
-                <Button
+                <button
                   onClick={onClose}
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full shrink-0 h-10 w-10 hover:bg-gray-100"
+                  className="text-blue-600 font-bold hover:underline text-sm uppercase px-4 py-2 shrink-0"
                 >
-                  <X className="w-6 h-6 text-gray-700" />
-                </Button>
+                  Cerrar
+                </button>
               </div>
 
               <div className="px-2 py-2 border-b bg-gray-50 flex justify-center">
@@ -139,11 +153,10 @@ export default function Celula({
                     <button
                       key={tab.id}
                       onClick={() => setVistaActual(tab.id as Vista)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-[10px] font-bold transition-all ${
-                        vistaActual === tab.id
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-[10px] font-bold transition-all ${vistaActual === tab.id
                           ? "bg-white text-blue-600 shadow-sm"
                           : "text-gray-500 hover:bg-gray-300"
-                      }`}
+                        }`}
                     >
                       <tab.icon className="w-4 h-4" />
                       {tab.label}
@@ -220,11 +233,10 @@ export default function Celula({
                           />
                         </div>
                         <Button
-                          className={`font-bold h-12 px-6 shadow-md transition-transform hover:scale-105 w-full md:w-auto uppercase text-xs ${
-                            totalEnGrupo === 0
+                          className={`font-bold h-12 px-6 shadow-md transition-transform hover:scale-105 w-full md:w-auto uppercase text-xs ${totalEnGrupo === 0
                               ? "bg-green-600 animate-pulse"
                               : "bg-blue-700"
-                          }`}
+                            }`}
                           onClick={() =>
                             onAnadirAfiliado(lider.id, totalEnGrupo === 0)
                           }
@@ -247,9 +259,11 @@ export default function Celula({
                         lider={lider}
                         afiliados={afiliadosFiltrados}
                         onEditar={onEditar}
+                        onAnadirFamiliar={(titularId) => onAnadirAfiliado(lider.id, false, titularId)}
                         onDataChange={onDataChange}
                         rolUsuarioSesion={rolUsuarioSesion}
                         config={config}
+                        totalEnCelula={totalEnGrupo}
                       />
                     </>
                   ) : (
@@ -266,3 +280,4 @@ export default function Celula({
     </Fragment>
   );
 }
+
