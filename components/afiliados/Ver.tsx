@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import {
@@ -11,7 +10,6 @@ import {
   Settings,
   UserPlus,
   Users,
-  CheckCircle2,
   ClipboardList,
   Shield,
   Crown,
@@ -27,7 +25,6 @@ import Celula from "./Celula";
 import Padron from "./Padron";
 import { SignupForm } from "@/components/admin/sign-up/SignForm";
 import type { Afiliado, Lider } from "./esquemas";
-import useUserData from "@/hooks/sesion/useUserData";
 import {
   Dialog,
   Transition,
@@ -35,26 +32,88 @@ import {
   DialogPanel,
 } from "@headlessui/react";
 
-import { listarUsuariosAction } from "./actions/usuarios";
 import { obtenerAfiliadosAction } from "./actions/afiliados";
-import { obtenerLugaresAction } from "./actions/lugares";
 import { obtenerConfiguracionAction } from "@/components/dashboard/actions/configuracion";
+import { loadAfiliacionVerDashboardAction } from "./actions/afiliacion-ver-dashboard";
 
 type Lugar = { id: number; nombre: string; sector_id: number | null; sector_nombre: string | null };
 type Tab = "Lideres" | "Afiliados" | "Padron" | "Administrativos";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+const AFILIACION_VER_QK = ["afiliacion-ver-dashboard"] as const;
+
 export default function Ver() {
-  const { rol, cargando: cargandoRol, userId } = useUserData();
-  const esAdminOSuper = rol === "ADMINISTRADOR" || rol === "SUPER" || rol === "ADMIN";
-  const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [lideres, setLideres] = useState<Lider[]>([]);
-  const [administrativos, setAdministrativos] = useState<Lider[]>([]);
-  const [lugares, setLugares] = useState<Lugar[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: dashboard,
+    isLoading: loading,
+    isError: dashboardIsError,
+    error: dashboardError,
+  } = useQuery({
+    queryKey: AFILIACION_VER_QK,
+    queryFn: async () => {
+      const res = await loadAfiliacionVerDashboardAction();
+      if (!res) throw new Error("No autorizado");
+      return res;
+    },
+    staleTime: 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+
+  const rol = dashboard?.session.rol ?? "";
+  const userId = dashboard?.session.id ?? "";
+  const esAdminOSuper = rol === "ADMINISTRADOR" || rol === "SUPER" || rol === "ADMIN";
+
+  const { lideres, administrativos, lugares } = useMemo(() => {
+    if (!dashboard) {
+      return {
+        lideres: [] as Lider[],
+        administrativos: [] as Lider[],
+        lugares: [] as Lugar[],
+      };
+    }
+
+    const arrAdmins = ["ADMINISTRADOR", "SUPER", "ADMIN"];
+    const r = dashboard.session.rol || "";
+    const uid = dashboard.session.id;
+
+    const todosUsuariosData = dashboard.todosUsuariosData;
+    const lugaresData = dashboard.lugaresData;
+
+    const allUsers = (
+      Array.isArray(todosUsuariosData)
+        ? todosUsuariosData
+        : (todosUsuariosData as { data?: Lider[] })?.data || []
+    ) as Lider[];
+
+    const allLideres = allUsers.filter((u) => u.rol === "LIDER");
+    const rolesVisibles =
+      r === "SUPER" ? arrAdmins : ["ADMIN", "ADMINISTRADOR"];
+    const allAdmins = allUsers.filter((u) => rolesVisibles.includes(u.rol));
+
+    let nextLideres: Lider[];
+    if (r === "LIDER" && uid) {
+      const myLider = allLideres.find((l) => l.id === uid);
+      const otherLideres = allLideres.filter((l) => l.id !== uid);
+      nextLideres = myLider ? [myLider, ...otherLideres] : allLideres;
+    } else {
+      nextLideres = allLideres;
+    }
+
+    const lugaresParsed = (
+      Array.isArray(lugaresData)
+        ? lugaresData
+        : (lugaresData as { data?: Lugar[] })?.data || []
+    ) as Lugar[];
+
+    return {
+      lideres: nextLideres,
+      administrativos: allAdmins,
+      lugares: lugaresParsed,
+    };
+  }, [dashboard]);
   const [activeTab, setActiveTab] = useState<Tab>("Lideres");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -76,77 +135,46 @@ export default function Ver() {
   const [isFirstMemberAddition, setIsFirstMemberAddition] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // TanStack Query para afiliados globales (se activa solo si es necesario)
-  const { data: afiliados = [], isLoading: isLoadingAfiliados } = useQuery({
+  // TanStack Query: los Server Actions aparecen como POST en DevTools; aquí evitamos refetch al cambiar de pestaña.
+  const { data: afiliados = [] } = useQuery({
     queryKey: ["afiliados-gl"],
     queryFn: () => obtenerAfiliadosAction(),
     enabled: isEstadisticasOpen || activeTab === "Afiliados",
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnMount: false,
   });
 
   const { data: configSis } = useQuery({
     queryKey: ["config_sistema"],
     queryFn: () => obtenerConfiguracionAction(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
   });
 
   const padronHabilitado = configSis?.padron === true;
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Al recargar datos, invalidamos el caché de TanStack para forzar actualización
-      queryClient.invalidateQueries({ queryKey: ["afiliados-lider"] });
-      queryClient.invalidateQueries({ queryKey: ["afiliados-gl"] });
-
-      // Primero definimos los roles de administrativos
-      const esCualquierAdmin = rol === "SUPER" || rol === "ADMINISTRADOR" || rol === "ADMIN";
-      const arrAdmins = ["ADMINISTRADOR", "SUPER", "ADMIN"];
-
-      // Hacemos una SOLA llamada al backend para todos los roles permitidos
-      const pTodosUsuarios = listarUsuariosAction(esCualquierAdmin ? ["LIDER", ...arrAdmins] : ["LIDER"]);
-      const pLugares = obtenerLugaresAction();
-
-      const [todosUsuariosData, lugaresData] = await Promise.all([
-        pTodosUsuarios,
-        pLugares
-      ]);
-
-      // Manejar la estructura según si viene envuelto
-      const allUsers = (
-        Array.isArray(todosUsuariosData) ? todosUsuariosData : (todosUsuariosData as any)?.data || []
-      ) as Lider[];
-
-      // Separamos en memoria líderes y administrativos
-      const allLideres = allUsers.filter(u => u.rol === "LIDER");
-      // SUPER ve todos los admins; ADMIN/ADMINISTRADOR solo ven ADMIN y ADMINISTRADOR (no SUPER)
-      const rolesVisibles = rol === "SUPER"
-        ? arrAdmins
-        : ["ADMIN", "ADMINISTRADOR"];
-      const allAdmins = allUsers.filter(u => rolesVisibles.includes(u.rol));
-
-      if (rol === "LIDER" && userId) {
-        const myLider = allLideres.find((l) => l.id === userId);
-        const otherLideres = allLideres.filter((l) => l.id !== userId);
-        setLideres(myLider ? [myLider, ...otherLideres] : allLideres);
-      } else {
-        setLideres(allLideres);
-      }
-
-      setLugares(
-        (Array.isArray(lugaresData) ? lugaresData : (lugaresData as any)?.data || []) as Lugar[]
-      );
-
-      setAdministrativos(allAdmins);
-    } catch (e) {
-      console.error(e);
-      toast.error("Error al cargar los datos.");
-    } finally {
-      setLoading(false);
-    }
+  const invalidateAfiliadosRelatedQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["afiliados-lider"] });
+    queryClient.invalidateQueries({ queryKey: ["afiliados-gl"] });
+    queryClient.invalidateQueries({ queryKey: ["conteo_padron"] });
   };
 
+  /** Tras borrar líder/afiliado: invalidar caché de miembros y recargar listas. */
   useEffect(() => {
-    if (!cargandoRol && rol) fetchData();
-  }, [rol, cargandoRol]);
+    if (!dashboardIsError) return;
+    console.error(dashboardError);
+    toast.error("Error al cargar los datos.");
+  }, [dashboardIsError, dashboardError]);
+
+  const fetchData = async () => {
+    await queryClient.refetchQueries({ queryKey: AFILIACION_VER_QK });
+  };
+
+  const refreshAfterDeletion = async () => {
+    invalidateAfiliadosRelatedQueries();
+    await fetchData();
+  };
 
   const handleOpenCreateLiderModal = () => {
     setLiderAEditar(null);
@@ -332,7 +360,7 @@ export default function Ver() {
             onVerCelula={handleOpenCelulaModal}
             onEditar={handleOpenEditLiderModal}
             rolUsuarioSesion={rol}
-            onDataChange={fetchData}
+            onDataChange={refreshAfterDeletion}
             searchTerm={searchTerm}
             idUsuarioSesion={userId}
             isLoading={loading}
@@ -354,7 +382,7 @@ export default function Ver() {
             onVerCelula={handleOpenCelulaModal}
             onEditar={handleOpenEditLiderModal}
             rolUsuarioSesion={rol}
-            onDataChange={fetchData}
+            onDataChange={refreshAfterDeletion}
             searchTerm={searchTerm}
             idUsuarioSesion={userId}
             isLoading={loading}
@@ -435,7 +463,7 @@ export default function Ver() {
         lider={liderParaCelula}
         onEditar={handleOpenEditModal}
         onAnadirAfiliado={handleOpenAnadirAfiliadoModal}
-        onDataChange={fetchData}
+        onDataChange={refreshAfterDeletion}
         rolUsuarioSesion={rol ?? ""}
       />
 
