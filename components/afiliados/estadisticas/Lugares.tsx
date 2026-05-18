@@ -10,7 +10,7 @@ import {
   LabelList,
   CartesianGrid,
 } from "recharts";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import type { Afiliado } from "../esquemas";
 import { useQuery } from "@tanstack/react-query";
 import { obtenerSectoresAction } from "../forms/afiliados/catalogos";
@@ -21,26 +21,29 @@ import {
   verticalBarRowsHeight,
 } from "../chartHorizontalUtils";
 import { horizontalSingleSegmentLabel } from "../chartHorizontalStackedLabels";
+import { Switch } from "@/components/ui/Switch";
+import { AFILIADOS_DEMO_ESTADISTICAS } from "../demo/afiliadosEstadisticasDemo";
 
 interface Props {
   afiliados: Afiliado[];
+  mostrarSimular?: boolean;
 }
 
-export default function Lugares({ afiliados }: Props) {
-  const [isMobile, setIsMobile] = useState(false);
-  const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
+export default function Lugares({
+  afiliados,
+  mostrarSimular = false,
+}: Props) {
+  const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [simular, setSimular] = useState(false);
+
+  const datos = mostrarSimular && simular ? AFILIADOS_DEMO_ESTADISTICAS : afiliados;
 
   const { data: sectores } = useQuery({
     queryKey: ["sectores"],
     queryFn: () => obtenerSectoresAction(),
   });
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
 
   const toggleSector = (sectorName: string) => {
     setExpandedSectors((prev) => ({
@@ -61,7 +64,7 @@ export default function Lugares({ afiliados }: Props) {
     }
 
     const conteo: Record<string, { count: number; sector: string; sector_id: number }> = {};
-    afiliados.forEach((af) => {
+    datos.forEach((af) => {
       const lugar = af.lugar_nombre || "Sin Especificar";
       const sector = af.sector_nombre || "Sin Clasificar";
       const sector_id = af.sector_id ?? 0;
@@ -89,7 +92,7 @@ export default function Lugares({ afiliados }: Props) {
       const lugaresDelSector = porSector[sectorName];
       const sectorId = sectorIds[sectorName] ?? 0;
       const totalReal = lugaresDelSector.reduce((s, l) => s + l.value, 0);
-      
+
       lugaresDelSector.sort((a, b) => b.value - a.value);
 
       return {
@@ -99,7 +102,7 @@ export default function Lugares({ afiliados }: Props) {
         lugares: lugaresDelSector,
       };
     });
-  }, [afiliados, sectores]);
+  }, [datos, sectores]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -122,13 +125,28 @@ export default function Lugares({ afiliados }: Props) {
 
   return (
     <div className="w-full h-full flex flex-col p-2">
-      <div className="flex flex-col items-start mb-4 shrink-0">
-        <h4 className="text-xl font-bold text-gray-800 uppercase">
-          Ubicación de los Afiliados
-        </h4>
-        <p className="text-sm text-gray-500 italic">
-          Lugares agrupados por sector
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4 shrink-0">
+        <div>
+          <h4 className="text-xl font-bold text-gray-800 uppercase">
+            Ubicación de los Afiliados
+          </h4>
+          <p className="text-sm text-gray-500 italic">
+            Lugares agrupados por sector
+          </p>
+          {mostrarSimular && simular && (
+            <p className="text-sky-600 text-[10px] font-bold uppercase mt-1">
+              Vista simulada
+            </p>
+          )}
+        </div>
+        {mostrarSimular && (
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            <span className="text-[10px] font-black uppercase text-gray-600">
+              Simular
+            </span>
+            <Switch checked={simular} onCheckedChange={setSimular} />
+          </label>
+        )}
       </div>
 
       <div className="flex-1 w-full overflow-y-auto pb-4 space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-300">
@@ -137,6 +155,7 @@ export default function Lugares({ afiliados }: Props) {
           return (
             <div key={sectorData.sectorName} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
               <button
+                type="button"
                 onClick={() => toggleSector(sectorData.sectorName)}
                 className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
               >

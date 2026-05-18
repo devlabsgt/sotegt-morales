@@ -20,9 +20,14 @@ type TabId = (typeof TABS)[number]["id"];
 
 interface Props {
   afiliados: Afiliado[];
+  /** ADMIN / SUPER: cada pestaña puede activar datos ilustrativos. */
+  mostrarSimular?: boolean;
 }
 
-export default function EstadisticasTabs({ afiliados }: Props) {
+export default function EstadisticasTabs({
+  afiliados,
+  mostrarSimular = false,
+}: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("edades");
 
   return (
@@ -32,6 +37,7 @@ export default function EstadisticasTabs({ afiliados }: Props) {
         {TABS.map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[10px] md:text-xs font-bold transition-all flex-1 min-w-0 text-center leading-tight ${activeTab === tab.id
                 ? "bg-white text-blue-600 shadow-sm"
@@ -48,31 +54,46 @@ export default function EstadisticasTabs({ afiliados }: Props) {
       <div className="w-full">
         {activeTab === "edades" && (
           <div className="bg-white border rounded-2xl p-4 md:p-6 shadow-sm h-[500px] flex flex-col w-full">
-            <EstadisticasEdades afiliados={afiliados} />
+            <EstadisticasEdades
+              afiliados={afiliados}
+              mostrarSimular={mostrarSimular}
+            />
           </div>
         )}
 
         {activeTab === "politicas" && (
           <div className="bg-white border rounded-2xl p-4 md:p-6 shadow-sm w-full">
-            <EstadisticasPoliticas afiliados={afiliados} />
+            <EstadisticasPoliticas
+              afiliados={afiliados}
+              mostrarSimular={mostrarSimular}
+            />
           </div>
         )}
 
         {activeTab === "ubicacion" && (
           <div className="bg-white border rounded-2xl p-4 md:p-6 shadow-sm w-full">
-            <EstadisticasLugares afiliados={afiliados} />
+            <EstadisticasLugares
+              afiliados={afiliados}
+              mostrarSimular={mostrarSimular}
+            />
           </div>
         )}
 
         {activeTab === "condicion" && (
           <div className="bg-white border rounded-2xl p-4 md:p-6 shadow-sm w-full">
-            <EstadisticasCondicionEspecial afiliados={afiliados} />
+            <EstadisticasCondicionEspecial
+              afiliados={afiliados}
+              mostrarSimular={mostrarSimular}
+            />
           </div>
         )}
 
         {activeTab === "religion" && (
           <div className="bg-white border rounded-2xl p-4 md:p-6 shadow-sm h-[500px] flex flex-col w-full">
-            <EstadisticasReligiones afiliados={afiliados} />
+            <EstadisticasReligiones
+              afiliados={afiliados}
+              mostrarSimular={mostrarSimular}
+            />
           </div>
         )}
       </div>

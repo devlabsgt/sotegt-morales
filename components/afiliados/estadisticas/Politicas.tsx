@@ -14,6 +14,7 @@ import {
 import { useState, useEffect, useMemo } from "react";
 import type { Afiliado } from "../esquemas";
 import { obtenerPoliticasConSubsAction } from "../forms/afiliados/catalogos";
+import { Switch } from "@/components/ui/Switch";
 
 const COLORES_SUB = [
   "#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6",
@@ -22,11 +23,11 @@ const COLORES_SUB = [
 
 interface Props {
   afiliados: Afiliado[];
+  mostrarSimular?: boolean;
 }
 
 type CatalogoPolitica = { politica: string; subs: string[] };
 
-/* ── Mini chart para UNA política ─────────────────────────── */
 function MiniPolitica({
   titulo,
   datos,
@@ -112,7 +113,6 @@ function MiniPolitica({
         </ResponsiveContainer>
       </div>
 
-      {/* Leyenda con colores para todas las pantallas */}
       <div className="mt-3 border-t pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {datos.map((d, i) => (
           <div key={i} className="flex items-center gap-2 text-xs">
@@ -129,15 +129,41 @@ function MiniPolitica({
   );
 }
 
-/* ── Componente principal ─────────────────────────────────── */
-export default function Politicas({ afiliados }: Props) {
+export default function Politicas({
+  afiliados,
+  mostrarSimular = false,
+}: Props) {
   const [catalogo, setCatalogo] = useState<CatalogoPolitica[]>([]);
+  const [simular, setSimular] = useState(false);
 
   useEffect(() => {
     obtenerPoliticasConSubsAction().then(setCatalogo);
   }, []);
 
-  const { chartDataMap, sinDefinir } = useMemo(() => {
+  const { chartDataMap, sinDefinir, totalEvaluados } = useMemo(() => {
+    if (mostrarSimular && simular && catalogo.length > 0) {
+      const fake: Record<
+        string,
+        { datos: { name: string; value: number; color: string }[]; total: number }
+      > = {};
+      catalogo.forEach((pol, pi) => {
+        const subsFromDB = pol.subs.length > 0 ? pol.subs : ["Sin sub-programa"];
+        let total = 0;
+        const datos = subsFromDB.map((sub, i) => {
+          const value = 8 + ((pi * 19 + i * 23) % 42);
+          total += value;
+          return {
+            name: sub,
+            value,
+            color: COLORES_SUB[i % COLORES_SUB.length],
+          };
+        });
+        fake[pol.politica] = { datos, total };
+      });
+      const sumTotal = Object.values(fake).reduce((s, x) => s + x.total, 0);
+      return { chartDataMap: fake, sinDefinir: 0, totalEvaluados: sumTotal };
+    }
+
     const conteo: Record<string, Record<string, number>> = {};
     let sinDefinir = 0;
 
@@ -162,7 +188,7 @@ export default function Politicas({ afiliados }: Props) {
       const conteoForPol = conteo[pol.politica] || {};
 
       const extraSubs = Object.keys(conteoForPol).filter(
-        (s) => !subsFromDB.includes(s)
+        (s) => !subsFromDB.includes(s),
       );
       const allSubs = [...subsFromDB, ...extraSubs];
 
@@ -176,8 +202,12 @@ export default function Politicas({ afiliados }: Props) {
       chartDataMap[pol.politica] = { datos, total };
     });
 
-    return { chartDataMap, sinDefinir };
-  }, [afiliados, catalogo]);
+    return {
+      chartDataMap,
+      sinDefinir,
+      totalEvaluados: afiliados.length,
+    };
+  }, [afiliados, catalogo, mostrarSimular, simular]);
 
   const allPoliticaNames = catalogo.map((c) => c.politica);
 
@@ -195,6 +225,24 @@ export default function Politicas({ afiliados }: Props) {
 
   return (
     <div className="w-full flex flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-h-[1.25rem]">
+          {mostrarSimular && simular && catalogo.length > 0 && (
+            <p className="text-sky-600 text-[10px] font-bold uppercase">
+              Vista simulada · programas según catálogo
+            </p>
+          )}
+        </div>
+        {mostrarSimular && (
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            <span className="text-[10px] font-black uppercase text-gray-600">
+              Simular
+            </span>
+            <Switch checked={simular} onCheckedChange={setSimular} />
+          </label>
+        )}
+      </div>
+
       {catalogo.length === 0 ? (
         <div className="flex items-center justify-center py-16">
           <p className="text-sm text-gray-300 font-bold uppercase animate-pulse">
@@ -209,9 +257,9 @@ export default function Politicas({ afiliados }: Props) {
 
       <div className="text-center text-[10px] text-gray-400 uppercase font-bold border-t border-gray-100 pt-3">
         <p className="text-gray-500 mb-1">
-          Total de registros evaluados: {afiliados.length}
+          Total de registros evaluados: {totalEvaluados}
         </p>
-        {sinDefinir > 0 && (
+        {!simular && sinDefinir > 0 && (
           <span>(Sin programa seleccionado: {sinDefinir})</span>
         )}
       </div>

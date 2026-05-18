@@ -460,7 +460,10 @@ export default function Ver() {
               </div>
               <div className="flex-1 overflow-y-auto bg-gray-50/30 py-4 md:p-6">
                 <div className="max-w-[1600px] mx-auto">
-                  <EstadisticasTabs afiliados={afiliados} />
+                  <EstadisticasTabs
+                    afiliados={afiliados}
+                    mostrarSimular={puedeVerReportesLideres}
+                  />
                 </div>
               </div>
             </DialogPanel>

@@ -10,36 +10,51 @@ import {
   LabelList,
   CartesianGrid,
 } from "recharts";
+import { useMemo, useState } from "react";
 import {
   maxBarRowThickness,
   verticalBarRowsHeight,
 } from "../chartHorizontalUtils";
 import { horizontalSingleSegmentLabel } from "../chartHorizontalStackedLabels";
 import type { Afiliado } from "../esquemas";
+import { Switch } from "@/components/ui/Switch";
+import { AFILIADOS_DEMO_ESTADISTICAS } from "../demo/afiliadosEstadisticasDemo";
 
 interface Props {
   afiliados: Afiliado[];
+  mostrarSimular?: boolean;
 }
 
-export default function CondicionEspecial({ afiliados }: Props) {
-  const conteo: Record<string, number> = {};
+export default function CondicionEspecial({
+  afiliados,
+  mostrarSimular = false,
+}: Props) {
+  const [simular, setSimular] = useState(false);
 
-  afiliados.forEach((afiliado) => {
-    const condicion = afiliado.condicion_especial || "Sin Especificar";
-    conteo[condicion] = (conteo[condicion] || 0) + 1;
-  });
+  const lista = mostrarSimular && simular ? AFILIADOS_DEMO_ESTADISTICAS : afiliados;
 
-  const datosRaw = Object.entries(conteo)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
+  const { datosRaw, datosChart, totalPersonas } = useMemo(() => {
+    const conteo: Record<string, number> = {};
+    lista.forEach((afiliado) => {
+      const condicion = afiliado.condicion_especial || "Sin Especificar";
+      conteo[condicion] = (conteo[condicion] || 0) + 1;
+    });
+    const raw = Object.entries(conteo)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const chart =
+      raw.length > 0
+        ? raw
+        : [{ name: "Sin registros", value: 1 }];
+    return {
+      datosRaw: raw,
+      datosChart: chart,
+      totalPersonas: lista.length,
+    };
+  }, [lista]);
 
-  const datos =
-    datosRaw.length > 0
-      ? datosRaw
-      : [{ name: "Sin registros", value: 1 }];
-
-  const barThCondicion = maxBarRowThickness(datos.map((d) => d.name));
-  const alturaGraficoCondicion = verticalBarRowsHeight(datos.length, barThCondicion);
+  const barThCondicion = maxBarRowThickness(datosChart.map((d) => d.name));
+  const alturaGraficoCondicion = verticalBarRowsHeight(datosChart.length, barThCondicion);
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       if (payload[0].payload.name === "Sin registros") return null;
@@ -63,13 +78,28 @@ export default function CondicionEspecial({ afiliados }: Props) {
 
   return (
     <div className="w-full h-full flex flex-col p-2">
-      <div className="flex flex-col items-start mb-4 shrink-0">
-        <h4 className="text-xl font-bold text-gray-800 uppercase">
-          Condición Especial
-        </h4>
-        <p className="text-sm text-gray-500 italic">
-          Distribución de condiciones especiales
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4 shrink-0">
+        <div>
+          <h4 className="text-xl font-bold text-gray-800 uppercase">
+            Condición Especial
+          </h4>
+          <p className="text-sm text-gray-500 italic">
+            Distribución de condiciones especiales
+          </p>
+          {mostrarSimular && simular && (
+            <p className="text-sky-600 text-[10px] font-bold uppercase mt-1">
+              Vista simulada
+            </p>
+          )}
+        </div>
+        {mostrarSimular && (
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            <span className="text-[10px] font-black uppercase text-gray-600">
+              Simular
+            </span>
+            <Switch checked={simular} onCheckedChange={setSimular} />
+          </label>
+        )}
       </div>
 
       <div className="flex-1 w-full overflow-x-auto overflow-y-hidden pb-4 scrollbar-thin scrollbar-thumb-gray-300">
@@ -80,7 +110,7 @@ export default function CondicionEspecial({ afiliados }: Props) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               layout="vertical"
-              data={datos}
+              data={datosChart}
               margin={{ top: 10, right: 36, left: 0, bottom: 10 }}
             >
               <CartesianGrid
@@ -111,7 +141,7 @@ export default function CondicionEspecial({ afiliados }: Props) {
                   dataKey="name"
                   content={(raw: any) =>
                     datosRaw.length > 0
-                      ? horizontalSingleSegmentLabel(raw, datos)
+                      ? horizontalSingleSegmentLabel(raw, datosChart)
                       : null
                   }
                 />
@@ -127,7 +157,7 @@ export default function CondicionEspecial({ afiliados }: Props) {
                       value,
                     } = props;
                     const midY = y + bh / 2;
-                    const total = afiliados.length;
+                    const total = totalPersonas;
                     const pct =
                       total > 0
                         ? (Number(value) / total) * 100

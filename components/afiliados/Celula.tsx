@@ -324,7 +324,10 @@ export default function Celula({
                     </>
                   ) : (
                     <div className="w-full pt-4">
-                      <EstadisticasTabs afiliados={afiliadosEfectivos} />
+                      <EstadisticasTabs
+                        afiliados={afiliadosEfectivos}
+                        mostrarSimular={mostrarSimular}
+                      />
                     </div>
                   )}
                 </div>

@@ -7,8 +7,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Afiliado } from "../esquemas";
+import { Switch } from "@/components/ui/Switch";
+import { AFILIADOS_DEMO_ESTADISTICAS } from "../demo/afiliadosEstadisticasDemo";
 
 const COLORES = [
   "#3b82f6",
@@ -21,10 +23,17 @@ const COLORES = [
 
 interface Props {
   afiliados: Afiliado[];
+  mostrarSimular?: boolean;
 }
 
-export default function Religiones({ afiliados }: Props) {
+export default function Religiones({
+  afiliados,
+  mostrarSimular = false,
+}: Props) {
   const [isMobile, setIsMobile] = useState(false);
+  const [simular, setSimular] = useState(false);
+
+  const datos = mostrarSimular && simular ? AFILIADOS_DEMO_ESTADISTICAS : afiliados;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -33,25 +42,25 @@ export default function Religiones({ afiliados }: Props) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const conteo: Record<string, number> = {};
-
-  afiliados.forEach((afiliado) => {
-    const rel = afiliado.religion || "Sin especificar";
-    conteo[rel] = (conteo[rel] || 0) + 1;
-  });
-
-  const datosPadron = Object.entries(conteo)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value], index) => ({
-      name,
-      value,
-      color: COLORES[index % COLORES.length],
-    }));
-
-  const datosGrafica =
-    afiliados.length === 0
-      ? [{ name: "Sin registros", value: 1, color: "#e5e7eb" }]
-      : datosPadron.filter((d) => d.value > 0);
+  const { datosGrafica } = useMemo(() => {
+    const conteo: Record<string, number> = {};
+    datos.forEach((afiliado) => {
+      const rel = afiliado.religion || "Sin especificar";
+      conteo[rel] = (conteo[rel] || 0) + 1;
+    });
+    const datosPadron = Object.entries(conteo)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value], index) => ({
+        name,
+        value,
+        color: COLORES[index % COLORES.length],
+      }));
+    const graf =
+      datos.length === 0
+        ? [{ name: "Sin registros", value: 1, color: "#e5e7eb" }]
+        : datosPadron.filter((d) => d.value > 0);
+    return { datosGrafica: graf };
+  }, [datos]);
 
   const renderLabelPie = (props: any) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, percent, name, fill, value } = props;
@@ -61,7 +70,7 @@ export default function Religiones({ afiliados }: Props) {
     const RADIAN = Math.PI / 180;
     const sin = Math.sin(-RADIAN * midAngle);
     const cos = Math.cos(-RADIAN * midAngle);
-    
+
     const offset = isMobile ? 5 : 10;
     const sx = cx + (outerRadius + 2) * cos;
     const sy = cy + (outerRadius + 2) * sin;
@@ -110,10 +119,10 @@ export default function Religiones({ afiliados }: Props) {
             <tspan fontWeight="normal" fill="#6b7280"> | {(percent * 100).toFixed(0)}%</tspan>
           </tspan>
           {lines.slice(0, 3).map((line, i) => (
-            <tspan 
-              key={i} 
-              x={ex + (cos >= 0 ? 1 : -1) * 5} 
-              dy={isMobile ? "1.2em" : "1.3em"} 
+            <tspan
+              key={i}
+              x={ex + (cos >= 0 ? 1 : -1) * 5}
+              dy={isMobile ? "1.2em" : "1.3em"}
               className={`${isMobile ? "text-[6px]" : "text-[11px]"} font-bold fill-gray-500`}
             >
               {line}
@@ -151,13 +160,28 @@ export default function Religiones({ afiliados }: Props) {
 
   return (
     <div className="w-full h-full flex flex-col min-h-[400px]">
-      <div className="flex flex-col items-start mb-4 shrink-0">
-        <h4 className="text-xs md:text-xl font-bold text-gray-800 uppercase">
-          Estadística de Religión
-        </h4>
-        <p className="text-sm text-gray-500 italic">
-          Distribución porcentual del grupo
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4 shrink-0">
+        <div>
+          <h4 className="text-xs md:text-xl font-bold text-gray-800 uppercase">
+            Estadística de Religión
+          </h4>
+          <p className="text-sm text-gray-500 italic">
+            Distribución porcentual del grupo
+          </p>
+          {mostrarSimular && simular && (
+            <p className="text-sky-600 text-[10px] font-bold uppercase mt-1">
+              Vista simulada
+            </p>
+          )}
+        </div>
+        {mostrarSimular && (
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            <span className="text-[10px] font-black uppercase text-gray-600">
+              Simular
+            </span>
+            <Switch checked={simular} onCheckedChange={setSimular} />
+          </label>
+        )}
       </div>
 
       <div className="flex-1 min-h-[250px] w-full relative">
@@ -190,7 +214,7 @@ export default function Religiones({ afiliados }: Props) {
       </div>
 
       <div className="mt-4 text-center text-[10px] text-gray-400 shrink-0 uppercase font-bold border-t border-gray-100 pt-4">
-        <p className="text-gray-500 mb-1">Total de registros: {afiliados.length}</p>
+        <p className="text-gray-500 mb-1">Total de registros: {datos.length}</p>
       </div>
     </div>
   );
