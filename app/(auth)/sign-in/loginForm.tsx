@@ -102,10 +102,10 @@ export function LoginForm() {
         <motion.div
           initial={{ opacity: 0, x: -20, filter: "blur(8px)" }}
           animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-          transition={{ 
-            duration: 1, 
-            delay: 0.4, 
-            ease: [0.16, 1, 0.3, 1] 
+          transition={{
+            duration: 1,
+            delay: 0.4,
+            ease: [0.16, 1, 0.3, 1],
           }}
         >
           <h1
@@ -124,7 +124,7 @@ export function LoginForm() {
         className="flex flex-col items-center mb-8 w-full text-center"
       >
         <h2 className="text-2xl md:text-4xl font-bold leading-tight bg-gradient-to-r from-blue-800 via-blue-400 to-blue-800 bg-[length:200%_auto] text-transparent bg-clip-text animate-text-shine">
-          Nestor Magaña, Alcalde
+          Néstor Magaña, Alcalde
         </h2>
         <span className="text-sm md:text-base font-bold text-blue-500 uppercase tracking-widest flex items-center gap-2 mt-2">
           <span className="h-[2px] w-8 bg-blue-400"></span>
@@ -132,7 +132,6 @@ export function LoginForm() {
           <span className="h-[2px] w-8 bg-blue-400"></span>
         </span>
       </motion.div>
-
 
       <form
         ref={formRef}
