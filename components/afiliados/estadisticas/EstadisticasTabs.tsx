@@ -10,7 +10,7 @@ import EstadisticasReligiones from "./Religion";
 
 const TABS = [
   { id: "edades", label: "Edades", emoji: "👥" },
-  { id: "politicas", label: "Intereses Políticos", emoji: "🏛️" },
+  { id: "politicas", label: "Programas de interes", emoji: "🏛️" },
   { id: "ubicacion", label: "Ubicación", emoji: "📍" },
   { id: "condicion", label: "Condición", emoji: "🩺" },
   { id: "religion", label: "Religión", emoji: "⛪" },
@@ -33,11 +33,10 @@ export default function EstadisticasTabs({ afiliados }: Props) {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[10px] md:text-xs font-bold transition-all flex-1 min-w-0 text-center leading-tight ${
-              activeTab === tab.id
+            className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[10px] md:text-xs font-bold transition-all flex-1 min-w-0 text-center leading-tight ${activeTab === tab.id
                 ? "bg-white text-blue-600 shadow-sm"
                 : "text-gray-500 hover:bg-gray-200"
-            }`}
+              }`}
           >
             <span className="hidden md:inline">{tab.emoji}</span>
             <span>{tab.label}</span>
