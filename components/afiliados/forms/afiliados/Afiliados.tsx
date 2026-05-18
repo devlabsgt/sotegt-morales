@@ -15,6 +15,7 @@ import {
 } from "./actions";
 import { obtenerReligionesUnicasAction } from "../../actions/afiliados";
 import { type AfiliadoFormData, type Afiliado } from "./schemas";
+import { CONDICION_ESPECIAL_OPCIONES } from "../../esquemas";
 import {
   useAfiliadosForm,
   useInicializarFormulario,
@@ -1046,10 +1047,11 @@ export default function AfiliadosForm({
                       className="w-full h-10 px-3 border rounded-md text-sm bg-white"
                     >
                       <option value="">Ninguna</option>
-                      <option value="Discapacidad">Discapacidad</option>
-                      <option value="Desnutrición">Desnutrición</option>
-                      <option value="Adulto mayor">Adulto mayor</option>
-                      <option value="Madre soltera">Madre soltera</option>
+                      {CONDICION_ESPECIAL_OPCIONES.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

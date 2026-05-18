@@ -9,8 +9,12 @@ import {
   ResponsiveContainer,
   LabelList,
   CartesianGrid,
-  Rectangle,
 } from "recharts";
+import {
+  maxBarRowThickness,
+  verticalBarRowsHeight,
+} from "../chartHorizontalUtils";
+import { horizontalSingleSegmentLabel } from "../chartHorizontalStackedLabels";
 import type { Afiliado } from "../esquemas";
 
 interface Props {
@@ -34,6 +38,8 @@ export default function CondicionEspecial({ afiliados }: Props) {
       ? datosRaw
       : [{ name: "Sin registros", value: 1 }];
 
+  const barThCondicion = maxBarRowThickness(datos.map((d) => d.name));
+  const alturaGraficoCondicion = verticalBarRowsHeight(datos.length, barThCondicion);
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       if (payload[0].payload.name === "Sin registros") return null;
@@ -69,13 +75,13 @@ export default function CondicionEspecial({ afiliados }: Props) {
       <div className="flex-1 w-full overflow-x-auto overflow-y-hidden pb-4 scrollbar-thin scrollbar-thumb-gray-300">
         <div
           className="w-full md:min-w-[550px]"
-          style={{ height: Math.max(datos.length * 55 + 30, 100) }}
+          style={{ height: alturaGraficoCondicion }}
         >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               layout="vertical"
               data={datos}
-              margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+              margin={{ top: 10, right: 36, left: 0, bottom: 10 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -97,54 +103,45 @@ export default function CondicionEspecial({ afiliados }: Props) {
               />
               <Bar
                 dataKey="value"
-                barSize={20}
-                shape={(props: any) => {
-                  const { x, y, width, height } = props;
-                  return (
-                    <Rectangle
-                      x={x}
-                      y={y - 12}
-                      width={width}
-                      height={height}
-                      fill={datosRaw.length > 0 ? "#0d9488" : "#e5e7eb"}
-                      radius={[0, 8, 8, 0]}
-                    />
-                  );
-                }}
+                barSize={barThCondicion}
+                fill={datosRaw.length > 0 ? "#0d9488" : "#e5e7eb"}
+                radius={[0, 8, 8, 0]}
               >
                 <LabelList
                   dataKey="name"
+                  content={(raw: any) =>
+                    datosRaw.length > 0
+                      ? horizontalSingleSegmentLabel(raw, datos)
+                      : null
+                  }
+                />
+                <LabelList
+                  dataKey="value"
                   content={(props: any) => {
-                    const { x, y, index } = props;
-                    const item = datos[index];
-
-                    if (!item) return null;
-
-                    const hasData = datosRaw.length > 0;
-
+                    if (datosRaw.length === 0) return null;
+                    const {
+                      x = 0,
+                      y = 0,
+                      width: bw = 0,
+                      height: bh = 0,
+                      value,
+                    } = props;
+                    const midY = y + bh / 2;
                     const total = afiliados.length;
-                    const percent = (item.value / total) * 100;
-
+                    const pct =
+                      total > 0
+                        ? (Number(value) / total) * 100
+                        : 0;
                     return (
                       <text
-                        x={x}
-                        y={y + 22}
-                        fill={hasData ? "#6b7280" : "#9ca3af"}
-                        fontSize={9}
-                        className="uppercase"
-                        textAnchor="start"
+                        x={x + bw + 6}
+                        y={midY}
+                        dominantBaseline="middle"
+                        fill="#4b5563"
+                        fontSize={10}
+                        fontWeight={700}
                       >
-                        {hasData && (
-                          <>
-                            <tspan fontSize={13} fontWeight="900" fill="#0d9488">
-                              ({item.value}
-                            </tspan>
-                            <tspan fontWeight="400" fontSize={10} fill="#9ca3af">
-                              {" "}| {percent.toFixed(0)}%)
-                            </tspan>
-                          </>
-                        )}
-                        <tspan dx={hasData ? 5 : 0} fontWeight="600"> {item.name}</tspan>
+                        {value} · {pct.toFixed(0)}%
                       </text>
                     );
                   }}

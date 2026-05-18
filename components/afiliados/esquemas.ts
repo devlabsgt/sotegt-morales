@@ -23,6 +23,17 @@ export const POLITICAS = [
   "Salud",
 ] as const;
 
+/** Opciones del select «Condición especial» (valor guardado = etiqueta). Vacío en BD = Ninguna. */
+export const CONDICION_ESPECIAL_OPCIONES = [
+  "Discapacidad",
+  "Desnutrición",
+  "Adulto mayor",
+  "Madre soltera",
+] as const;
+
+export type CondicionEspecialValor =
+  (typeof CONDICION_ESPECIAL_OPCIONES)[number];
+
 export const afiliadoSchema = z.object({
   nombres: z.string().min(2, "Requerido"),
   apellidos: z.string().min(2, "Requerido"),

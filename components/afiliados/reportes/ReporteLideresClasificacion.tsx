@@ -19,8 +19,13 @@ import {
   MapPin,
   ChevronDown,
   FileSpreadsheet,
+  Accessibility,
 } from "lucide-react";
-import type { Afiliado, Lider } from "../esquemas";
+import {
+  type Afiliado,
+  type Lider,
+  CONDICION_ESPECIAL_OPCIONES,
+} from "../esquemas";
 import { descargarExcelAoA } from "./DescargarExcel";
 import {
   BarChart,
@@ -34,7 +39,17 @@ import {
   PieChart,
   Pie,
   Legend,
+  LabelList,
 } from "recharts";
+import {
+  maxBarRowThickness,
+  verticalBarRowsHeight,
+} from "../chartHorizontalUtils";
+import {
+  horizontalSingleSegmentLabel,
+  stackedFamiliaresCategoriaLabel,
+  stackedTitularesCategoriaLabel,
+} from "../chartHorizontalStackedLabels";
 
 type Props = {
   open: boolean;
@@ -70,6 +85,10 @@ const NIVELES_TABLA = ["Alto", "Medio", "Bajo", "Sin calificar"] as const;
 type NivelTabla = (typeof NIVELES_TABLA)[number];
 
 const PAGE_SIZE_DETALLE = 10;
+
+/** Anula el `text-[#06c]` del Button outline en descargas Excel */
+const CLASS_BTN_EXCEL =
+  "text-green-700 hover:text-green-800 hover:bg-green-700/10";
 
 const COLOR_TITULAR = "#15803d";
 const COLOR_FAMILIAR = "#7c3aed";
@@ -117,6 +136,91 @@ const PALETA_SECTOR_REGION: string[] = [
   "#c026d3",
   "#0369a1",
 ];
+
+const PALETA_CONDICION_ESPECIAL: string[] = [
+  "#7c3aed",
+  "#ea580c",
+  "#0d9488",
+  "#2563eb",
+  "#db2777",
+  "#ca8a04",
+  "#4f46e5",
+  "#15803d",
+];
+
+type AfiliadoResumenCondicion = {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  dpi: string;
+  condicionLabel: string;
+  familiar_de?: string | null;
+};
+
+function textoCondicionEspecial(
+  raw: string | null | undefined,
+): string | null {
+  const t = String(raw ?? "").trim();
+  return t.length > 0 ? t : null;
+}
+
+function construirAfiliadosCondicionDemo(): AfiliadoResumenCondicion[] {
+  const out: AfiliadoResumenCondicion[] = [];
+  CONDICION_ESPECIAL_OPCIONES.forEach((condicionLabel, gi) => {
+    const n = 2 + (gi % 3);
+    for (let j = 0; j < n; j += 1) {
+      out.push({
+        id: `demo-cond-${gi}-${j}`,
+        nombres: "Persona",
+        apellidos: `Ejemplo ${gi + 1}-${j + 1}`,
+        dpi: `${1590000000000 + gi * 100 + j}`.slice(0, 13),
+        condicionLabel,
+        familiar_de: j > 0 ? `demo-cond-${gi}-0` : null,
+      });
+    }
+  });
+  return out;
+}
+
+function ordenGruposCondicionEspecial(
+  a: { condicionLabel: string; personas: AfiliadoResumenCondicion[] },
+  b: { condicionLabel: string; personas: AfiliadoResumenCondicion[] },
+): number {
+  const orden = new Map<string, number>(
+    CONDICION_ESPECIAL_OPCIONES.map((v, i) => [v, i]),
+  );
+  const ia = orden.get(a.condicionLabel);
+  const ib = orden.get(b.condicionLabel);
+  if (ia !== undefined && ib !== undefined) return ia - ib;
+  if (ia !== undefined) return -1;
+  if (ib !== undefined) return 1;
+  const d = b.personas.length - a.personas.length;
+  if (d !== 0) return d;
+  return a.condicionLabel.localeCompare(b.condicionLabel, "es");
+}
+
+function agruparPorCondicionEspecial(
+  lista: AfiliadoResumenCondicion[],
+): { condicionLabel: string; personas: AfiliadoResumenCondicion[] }[] {
+  const mapa = new Map<string, AfiliadoResumenCondicion[]>();
+  lista.forEach((p) => {
+    const key = p.condicionLabel;
+    const prev = mapa.get(key) ?? [];
+    prev.push(p);
+    mapa.set(key, prev);
+  });
+  const grupos = [...mapa.entries()].map(([condicionLabel, personas]) => ({
+    condicionLabel,
+    personas: [...personas].sort((a, b) =>
+      `${a.apellidos} ${a.nombres}`.localeCompare(
+        `${b.apellidos} ${b.nombres}`,
+        "es",
+      ),
+    ),
+  }));
+  grupos.sort(ordenGruposCondicionEspecial);
+  return grupos;
+}
 
 function construirAfiliadosRegionDemo(): AfiliadoRegionRow[] {
   const out: AfiliadoRegionRow[] = [];
@@ -515,7 +619,7 @@ export default function ReporteLideresClasificacion({
     useState<Set<NivelTabla> | null>(null);
   const [paginaDetalle, setPaginaDetalle] = useState(1);
   const [pestañaReporte, setPestañaReporte] = useState<
-    "lideres" | "enlaces" | "region"
+    "lideres" | "enlaces" | "region" | "condicion_especial"
   >("lideres");
   const [paginaEnlaces, setPaginaEnlaces] = useState(1);
   const [modoTerritorio, setModoTerritorio] =
@@ -745,7 +849,13 @@ export default function ReporteLideresClasificacion({
     indiceInicioEnlaces,
     indiceInicioEnlaces + PAGE_SIZE_DETALLE,
   );
-  const alturaGraficoEnlaces = Math.max(200, enlacesBarFilas.length * 36);
+  const barSizeGraficoEnlaces = maxBarRowThickness(
+    enlacesBarFilas.map((r) => r.nombre),
+  );
+  const alturaGraficoEnlaces = verticalBarRowsHeight(
+    enlacesBarFilas.length,
+    barSizeGraficoEnlaces,
+  );
   const filasPaginaEnlaces = lideresEnlacesLista.slice(
     indiceInicioEnlaces,
     indiceInicioEnlaces + PAGE_SIZE_DETALLE,
@@ -800,11 +910,6 @@ export default function ReporteLideresClasificacion({
     [bloquesRegion],
   );
 
-  const alturaBarrasSectorRegion = Math.max(
-    200,
-    regionBarrasPorSector.length * 40,
-  );
-
   const filasDistritoTerritorio = useMemo((): FilaDistritoTerritorio[] => {
     const out: FilaDistritoTerritorio[] = [];
     bloquesRegion.forEach((b) => {
@@ -846,9 +951,41 @@ export default function ReporteLideresClasificacion({
     [filasDistritoTerritorio],
   );
 
-  const alturaBarrasDistritoRegion = Math.max(
-    200,
-    regionBarrasPorDistrito.length * 40,
+  const afiliadosCondicionResumen = useMemo((): AfiliadoResumenCondicion[] => {
+    if (simulacionDatosActivada) return construirAfiliadosCondicionDemo();
+    const out: AfiliadoResumenCondicion[] = [];
+    for (const a of afiliados) {
+      const label = textoCondicionEspecial(a.condicion_especial);
+      if (!label) continue;
+      out.push({
+        id: a.id,
+        nombres: a.nombres,
+        apellidos: a.apellidos,
+        dpi: a.dpi,
+        condicionLabel: label,
+        familiar_de: a.familiar_de ?? null,
+      });
+    }
+    return out;
+  }, [simulacionDatosActivada, afiliados]);
+
+  const gruposCondicionEspecial = useMemo(
+    () => agruparPorCondicionEspecial(afiliadosCondicionResumen),
+    [afiliadosCondicionResumen],
+  );
+
+  const condicionEspecialBarFilas = useMemo(
+    () =>
+      gruposCondicionEspecial.map((g) => {
+        const raw = g.condicionLabel;
+        return {
+          etiqueta:
+            raw.length > 36 ? `${raw.slice(0, 34)}…` : raw,
+          etiquetaCompleta: raw,
+          cantidad: g.personas.length,
+        };
+      }),
+    [gruposCondicionEspecial],
   );
 
   const muestraChartsDistritoTerritorio =
@@ -860,9 +997,20 @@ export default function ReporteLideresClasificacion({
   const territorioBarrasFilas = muestraChartsDistritoTerritorio
     ? regionBarrasPorDistrito
     : regionBarrasPorSector;
-  const territorioAlturaBarras = muestraChartsDistritoTerritorio
-    ? alturaBarrasDistritoRegion
-    : alturaBarrasSectorRegion;
+  const barSizeTerritorioReporte = maxBarRowThickness(
+    territorioBarrasFilas.map((f) => f.etiqueta),
+  );
+  const territorioAlturaBarras = verticalBarRowsHeight(
+    territorioBarrasFilas.length,
+    barSizeTerritorioReporte,
+  );
+  const barSizeCondicionEspecial = maxBarRowThickness(
+    condicionEspecialBarFilas.map((r) => r.etiquetaCompleta),
+  );
+  const alturaBarCondicionEspecial = verticalBarRowsHeight(
+    condicionEspecialBarFilas.length,
+    barSizeCondicionEspecial,
+  );
 
   const etiquetaVistaTerritorio =
     modoTerritorio === "todos"
@@ -876,14 +1024,18 @@ export default function ReporteLideresClasificacion({
       ? "Reportes · Nivel de compromiso"
       : pestañaReporte === "enlaces"
         ? "Reportes · Enlaces en la organización"
-        : "Reportes · Territorio";
+        : pestañaReporte === "region"
+          ? "Reportes · Territorio"
+          : "Reportes · Condición especial";
 
   const subtituloCabeceraReporte =
     pestañaReporte === "lideres"
       ? `Orden: alto → medio → bajo · ${datosEfectivos.length} líderes${simulacionDatosActivada ? " · vista simulada" : ""}`
       : pestañaReporte === "enlaces"
         ? `Titulares y familiares por célula · ${lideresEnVista.length} líderes en vista${simulacionDatosActivada ? " · simulada" : ""}`
-        : `Vista territorial · ${etiquetaVistaTerritorio} · ${afiliadosPorRegionFuente.length} afiliados${simulacionDatosActivada ? " · simulada" : ""}`;
+        : pestañaReporte === "region"
+          ? `Vista territorial · ${etiquetaVistaTerritorio} · ${afiliadosPorRegionFuente.length} afiliados${simulacionDatosActivada ? " · simulada" : ""}`
+          : `${afiliadosCondicionResumen.length} personas con condición declarada · ${gruposCondicionEspecial.length} tipo(s) distinto(s)${simulacionDatosActivada ? " · simulada" : ""}`;
 
   const descargarExcelDetalleClasificacion = (): void => {
     const filas: (string | number)[][] = [
@@ -1111,6 +1263,18 @@ export default function ReporteLideresClasificacion({
                     <MapPin className="h-4 w-4 shrink-0" aria-hidden />
                     Territorio
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPestañaReporte("condicion_especial")}
+                    className={`flex items-center gap-2 rounded-t-lg border-2 border-b-0 px-4 py-2.5 text-xs font-black uppercase md:text-sm ${
+                      pestañaReporte === "condicion_especial"
+                        ? "border-violet-700 bg-violet-700 text-white"
+                        : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <Accessibility className="h-4 w-4 shrink-0" aria-hidden />
+                    Condición especial
+                  </button>
                 </div>
                 <div className="px-4 py-5 md:px-6 md:py-6">
                   <div className="mx-auto flex max-w-[1400px] flex-col gap-6 lg:gap-8">
@@ -1294,7 +1458,7 @@ export default function ReporteLideresClasificacion({
                               size="sm"
                               disabled={ordenadosFiltrados.length === 0}
                               onClick={descargarExcelDetalleClasificacion}
-                              className="h-9 gap-1.5 border-slate-300 text-[10px] font-black uppercase md:text-xs"
+                              className={`h-9 gap-1.5 border-slate-300 text-[10px] font-black uppercase md:text-xs ${CLASS_BTN_EXCEL}`}
                               aria-label="Descargar Excel detalle clasificación"
                             >
                               <FileSpreadsheet className="h-4 w-4 shrink-0" />
@@ -1613,12 +1777,7 @@ export default function ReporteLideresClasificacion({
                                   <YAxis
                                     type="category"
                                     dataKey="nombre"
-                                    width={vistaBarrasMovil ? 88 : 128}
-                                    tickMargin={vistaBarrasMovil ? 2 : 8}
-                                    tick={{
-                                      fontSize: vistaBarrasMovil ? 9 : 10,
-                                      fill: "#64748b",
-                                    }}
+                                    hide
                                   />
                                   <Tooltip
                                     contentStyle={{
@@ -1637,13 +1796,35 @@ export default function ReporteLideresClasificacion({
                                     stackId="m"
                                     fill={COLOR_TITULAR}
                                     name="Titulares"
-                                  />
+                                    barSize={barSizeGraficoEnlaces}
+                                  >
+                                    <LabelList
+                                      dataKey="titulares"
+                                      content={(r) =>
+                                        stackedTitularesCategoriaLabel(
+                                          r,
+                                          enlacesBarFilas,
+                                        )
+                                      }
+                                    />
+                                  </Bar>
                                   <Bar
                                     dataKey="familiares"
                                     stackId="m"
                                     fill={COLOR_FAMILIAR}
                                     name="Familiares"
-                                  />
+                                    barSize={barSizeGraficoEnlaces}
+                                  >
+                                    <LabelList
+                                      dataKey="familiares"
+                                      content={(r) =>
+                                        stackedFamiliaresCategoriaLabel(
+                                          r,
+                                          enlacesBarFilas,
+                                        )
+                                      }
+                                    />
+                                  </Bar>
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -1712,7 +1893,7 @@ export default function ReporteLideresClasificacion({
                             size="sm"
                             disabled={lideresEnlacesLista.length === 0}
                             onClick={descargarExcelEnlacesTitularesFamiliares}
-                            className="h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs"
+                            className={`h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs ${CLASS_BTN_EXCEL}`}
                             aria-label="Descargar Excel enlaces titulares y familiares"
                           >
                             <FileSpreadsheet className="h-4 w-4 shrink-0" />
@@ -1963,20 +2144,7 @@ export default function ReporteLideresClasificacion({
                                       <YAxis
                                         type="category"
                                         dataKey="etiqueta"
-                                        width={
-                                          muestraChartsDistritoTerritorio
-                                            ? vistaBarrasMovil
-                                              ? 100
-                                              : 200
-                                            : vistaBarrasMovil
-                                              ? 90
-                                              : 132
-                                        }
-                                        tickMargin={vistaBarrasMovil ? 2 : 8}
-                                        tick={{
-                                          fontSize: vistaBarrasMovil ? 9 : 10,
-                                          fill: "#64748b",
-                                        }}
+                                        hide
                                       />
                                       <Tooltip
                                         labelFormatter={(label, payloadArr) => {
@@ -2010,13 +2178,35 @@ export default function ReporteLideresClasificacion({
                                         stackId="sf"
                                         fill={COLOR_TITULAR}
                                         name="Titulares"
-                                      />
+                                        barSize={barSizeTerritorioReporte}
+                                      >
+                                        <LabelList
+                                          dataKey="titulares"
+                                          content={(r) =>
+                                            stackedTitularesCategoriaLabel(
+                                              r,
+                                              territorioBarrasFilas,
+                                            )
+                                          }
+                                        />
+                                      </Bar>
                                       <Bar
                                         dataKey="familiares"
                                         stackId="sf"
                                         fill={COLOR_FAMILIAR}
                                         name="Familiares"
-                                      />
+                                        barSize={barSizeTerritorioReporte}
+                                      >
+                                        <LabelList
+                                          dataKey="familiares"
+                                          content={(r) =>
+                                            stackedFamiliaresCategoriaLabel(
+                                              r,
+                                              territorioBarrasFilas,
+                                            )
+                                          }
+                                        />
+                                      </Bar>
                                     </BarChart>
                                   </ResponsiveContainer>
                                 </div>
@@ -2055,7 +2245,7 @@ export default function ReporteLideresClasificacion({
                                               bloque,
                                             );
                                           }}
-                                          className="h-9 gap-1.5 border-slate-300 text-[10px] font-black uppercase md:text-xs"
+                                          className={`h-9 gap-1.5 border-slate-300 text-[10px] font-black uppercase md:text-xs ${CLASS_BTN_EXCEL}`}
                                           aria-label={`Descargar Excel territorio ${bloque.sectorNombre}`}
                                         >
                                           <FileSpreadsheet className="h-4 w-4 shrink-0" />
@@ -2149,7 +2339,7 @@ export default function ReporteLideresClasificacion({
                                     !bloquesRegion.some((b) => b.total > 0)
                                   }
                                   onClick={descargarExcelTerritorioSoloRegion}
-                                  className="h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs"
+                                  className={`h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs ${CLASS_BTN_EXCEL}`}
                                   aria-label="Descargar Excel territorio solo región"
                                 >
                                   <FileSpreadsheet className="h-4 w-4 shrink-0" />
@@ -2229,7 +2419,7 @@ export default function ReporteLideresClasificacion({
                                   size="sm"
                                   disabled={filasDistritoTerritorio.length === 0}
                                   onClick={descargarExcelTerritorioSoloDistrito}
-                                  className="h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs"
+                                  className={`h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs ${CLASS_BTN_EXCEL}`}
                                   aria-label="Descargar Excel territorio solo distrito"
                                 >
                                   <FileSpreadsheet className="h-4 w-4 shrink-0" />
@@ -2294,6 +2484,194 @@ export default function ReporteLideresClasificacion({
                               </div>
                             </div>
                           )}
+                        </>
+                      )}
+                    </>
+                  )}
+                  {pestañaReporte === "condicion_especial" && (
+                    <>
+                      <div className="rounded-lg border border-violet-200 bg-violet-50/40 px-3 py-2 text-xs leading-snug text-slate-700">
+                        <span className="font-black uppercase text-violet-900">
+                          Condición especial:
+                        </span>{" "}
+                        Personas con valor en el campo condición especial (Discapacidad, Desnutrición, Adulto mayor, Madre soltera), agrupadas por el texto registrado (
+                        {!simulacionDatosActivada
+                          ? "datos del sistema"
+                          : "vista simulada"}
+                        ). Una sola gráfica resume el conteo por tipo.
+                      </div>
+                      {afiliadosCondicionResumen.length === 0 ? (
+                        <p className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm font-semibold text-slate-500">
+                          No hay afiliados con condición especial registrada.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="rounded-2xl border border-slate-200 bg-white px-2 py-4 sm:p-4 md:p-5">
+                            <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">
+                              Personas por condición (barras horizontales)
+                            </h3>
+                            <div
+                              className="w-full md:pt-2"
+                              style={{ height: alturaBarCondicionEspecial }}
+                            >
+                              <ResponsiveContainer
+                                width="100%"
+                                height="100%"
+                              >
+                                <BarChart
+                                  layout="vertical"
+                                  data={condicionEspecialBarFilas}
+                                  margin={{
+                                    left: 4,
+                                    right: vistaBarrasMovil ? 12 : 20,
+                                    top: 8,
+                                    bottom: 8,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    horizontal={false}
+                                    stroke="#e2e8f0"
+                                  />
+                                  <XAxis
+                                    type="number"
+                                    allowDecimals={false}
+                                    tick={{ fontSize: 11 }}
+                                  />
+                                  <YAxis
+                                    type="category"
+                                    dataKey="etiqueta"
+                                    hide
+                                  />
+                                  <Tooltip
+                                    labelFormatter={(_, payloadArr) => {
+                                      const p = payloadArr?.[0]?.payload as
+                                        | { etiquetaCompleta?: string }
+                                        | undefined;
+                                      return (
+                                        p?.etiquetaCompleta ??
+                                        String(_ ?? "")
+                                      );
+                                    }}
+                                    contentStyle={{
+                                      borderRadius: 8,
+                                      border: "1px solid #e2e8f0",
+                                    }}
+                                  />
+                                  <Bar
+                                    dataKey="cantidad"
+                                    radius={[0, 8, 8, 0]}
+                                    name="Personas"
+                                    barSize={barSizeCondicionEspecial}
+                                  >
+                                    {condicionEspecialBarFilas.map(
+                                      (_, idx) => (
+                                        <Cell
+                                          key={idx}
+                                          fill={
+                                            PALETA_CONDICION_ESPECIAL[
+                                              idx %
+                                                PALETA_CONDICION_ESPECIAL
+                                                  .length
+                                            ]
+                                          }
+                                        />
+                                      ),
+                                    )}
+                                    <LabelList
+                                      dataKey="etiquetaCompleta"
+                                      content={(r) =>
+                                        horizontalSingleSegmentLabel(
+                                          r,
+                                          condicionEspecialBarFilas,
+                                        )
+                                      }
+                                    />
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-4">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">
+                              Listado por condición
+                            </h3>
+                            {gruposCondicionEspecial.map((grupo) => (
+                              <details
+                                key={grupo.condicionLabel}
+                                open
+                                className="group/cond overflow-hidden rounded-2xl border border-slate-200 bg-white transition-shadow open:shadow-md"
+                              >
+                                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-violet-50/80 px-4 py-3 md:px-5 [&::-webkit-details-marker]:hidden">
+                                  <div className="min-w-0">
+                                    <h4 className="text-sm font-black uppercase leading-snug text-slate-900">
+                                      {grupo.condicionLabel}
+                                    </h4>
+                                    <p className="mt-0.5 text-[11px] font-bold uppercase text-violet-800">
+                                      {grupo.personas.length} persona
+                                      {grupo.personas.length === 1 ? "" : "s"}
+                                    </p>
+                                  </div>
+                                  <ChevronDown className="h-5 w-5 shrink-0 text-violet-800 transition-transform group-open/cond:rotate-180" />
+                                </summary>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="border-b border-slate-100 bg-slate-50/90 text-left text-[10px] font-black uppercase tracking-wide text-slate-500 md:text-xs">
+                                        <th className="px-3 py-3 md:px-4">#</th>
+                                        <th className="px-3 py-3 md:px-4">
+                                          Nombre
+                                        </th>
+                                        <th className="px-3 py-3 md:px-4">
+                                          DPI
+                                        </th>
+                                        <th className="px-3 py-3 md:px-4">
+                                          Vínculo
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {grupo.personas.map((p, idx) => {
+                                        const esFamiliar =
+                                          !!p.familiar_de &&
+                                          String(p.familiar_de).trim() !== "";
+                                        return (
+                                          <tr
+                                            key={p.id}
+                                            className="border-b border-slate-100/80 hover:bg-slate-50"
+                                          >
+                                            <td className="px-3 py-3 font-mono text-xs text-slate-400 md:px-4">
+                                              {idx + 1}
+                                            </td>
+                                            <td className="px-3 py-3 font-semibold text-slate-900 md:px-4">
+                                              {p.nombres} {p.apellidos}
+                                            </td>
+                                            <td className="px-3 py-3 font-mono text-xs text-slate-700 md:px-4">
+                                              {p.dpi}
+                                            </td>
+                                            <td className="px-3 py-3 md:px-4">
+                                              <span
+                                                className={`text-[10px] font-black uppercase ${
+                                                  esFamiliar
+                                                    ? "text-violet-700"
+                                                    : "text-emerald-700"
+                                                }`}
+                                              >
+                                                {esFamiliar
+                                                  ? "Familiar"
+                                                  : "Titular"}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </details>
+                            ))}
+                          </div>
                         </>
                       )}
                     </>

@@ -9,14 +9,18 @@ import {
   ResponsiveContainer,
   LabelList,
   CartesianGrid,
-  Rectangle,
 } from "recharts";
 import { useMemo, useState, useEffect } from "react";
 import type { Afiliado } from "../esquemas";
 import { useQuery } from "@tanstack/react-query";
 import { obtenerSectoresAction } from "../forms/afiliados/catalogos";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  maxBarRowThickness,
+  verticalBarRowsHeight,
+} from "../chartHorizontalUtils";
+import { horizontalSingleSegmentLabel } from "../chartHorizontalStackedLabels";
 
 interface Props {
   afiliados: Afiliado[];
@@ -170,13 +174,20 @@ export default function Lugares({ afiliados }: Props) {
                       {sectorData.lugares.length > 0 ? (
                         <div
                           className="w-full md:min-w-[550px]"
-                          style={{ height: Math.max(sectorData.lugares.length * 55 + 30, 100) }}
+                          style={{
+                            height: verticalBarRowsHeight(
+                              sectorData.lugares.length,
+                              maxBarRowThickness(
+                                sectorData.lugares.map((l) => l.name),
+                              ),
+                            ),
+                          }}
                         >
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                               layout="vertical"
                               data={sectorData.lugares}
-                              margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                              margin={{ top: 10, right: 36, left: 0, bottom: 10 }}
                             >
                               <CartesianGrid
                                 strokeDasharray="3 3"
@@ -198,49 +209,50 @@ export default function Lugares({ afiliados }: Props) {
                               />
                               <Bar
                                 dataKey="value"
-                                barSize={20}
-                                shape={(props: any) => {
-                                  const { x, y, width, height } = props;
-                                  return (
-                                    <Rectangle
-                                      x={x}
-                                      y={y - 12}
-                                      width={width}
-                                      height={height}
-                                      fill="#6366f1"
-                                      radius={[0, 8, 8, 0]}
-                                    />
-                                  );
-                                }}
+                                barSize={maxBarRowThickness(
+                                  sectorData.lugares.map((l) => l.name),
+                                )}
+                                fill="#6366f1"
+                                radius={[0, 8, 8, 0]}
                               >
                                 <LabelList
                                   dataKey="name"
+                                  content={(r) =>
+                                    horizontalSingleSegmentLabel(
+                                      r,
+                                      sectorData.lugares,
+                                    )
+                                  }
+                                />
+                                <LabelList
+                                  dataKey="value"
                                   content={(props: any) => {
-                                    const { x, y, index } = props;
-                                    const item = sectorData.lugares[index];
-
+                                    const {
+                                      x = 0,
+                                      y = 0,
+                                      width: bw = 0,
+                                      height: bh = 0,
+                                      value,
+                                    } = props;
+                                    const item =
+                                      sectorData.lugares[props.index];
                                     if (!item) return null;
-
-                                    const percent = (item.value / sectorData.totalReal) * 100;
-
+                                    const pct =
+                                      sectorData.totalReal > 0
+                                        ? (item.value / sectorData.totalReal) *
+                                          100
+                                        : 0;
+                                    const midY = y + bh / 2;
                                     return (
                                       <text
-                                        x={x}
-                                        y={y + 22}
-                                        fill="#6b7280"
-                                        fontSize={9}
-                                        className="uppercase"
-                                        textAnchor="start"
+                                        x={x + bw + 6}
+                                        y={midY}
+                                        dominantBaseline="middle"
+                                        fill="#4b5563"
+                                        fontSize={10}
+                                        fontWeight={700}
                                       >
-                                        <>
-                                          <tspan fontSize={13} fontWeight="900" fill="#6366f1">
-                                            ({item.value}
-                                          </tspan>
-                                          <tspan fontWeight="400" fontSize={10} fill="#9ca3af">
-                                            {" "}| {percent.toFixed(0)}%)
-                                          </tspan>
-                                        </>
-                                        <tspan dx={5} fontWeight="600"> {item.name}</tspan>
+                                        {value} · {pct.toFixed(0)}%
                                       </text>
                                     );
                                   }}
