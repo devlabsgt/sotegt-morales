@@ -274,7 +274,7 @@ export default function AfiliadosForm({
 
   const isEditMode = !!afiliadoAEditar;
   const [step, setStep] = useState(
-    isEditMode || isFirstMember || !padronHabilitado ? 2 : 1,
+    isEditMode || !padronHabilitado ? 2 : 1,
   );
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [mostrandoNuevaReligion, setMostrandoNuevaReligion] = useState(false);
@@ -386,11 +386,11 @@ export default function AfiliadosForm({
   };
 
   useEffect(() => {
-    if (isEditMode || isFirstMember || !padronHabilitado) setStep(2);
+    if (isEditMode || !padronHabilitado) setStep(2);
     else setStep(1);
     setPadronStatus("none");
     setYaRegistrado(null);
-  }, [isOpen, isEditMode, isFirstMember, padronHabilitado]);
+  }, [isOpen, isEditMode, padronHabilitado]);
 
   useInicializarFormulario(
     isOpen,
@@ -696,7 +696,18 @@ export default function AfiliadosForm({
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-blue-600 uppercase">DPI</label>
                     <div className="relative">
-                      <Input {...register("dpi")} placeholder="DPI" readOnly={!isEditMode && !isFirstMember && padronHabilitado} className={!isEditMode && !isFirstMember && padronHabilitado ? "bg-gray-100" : ""} />
+                      <Input
+                        {...register("dpi")}
+                        placeholder="DPI"
+                        readOnly={
+                          !isEditMode && padronHabilitado && step === 2
+                        }
+                        className={
+                          !isEditMode && padronHabilitado && step === 2
+                            ? "bg-gray-100"
+                            : ""
+                        }
+                      />
                       {padronHabilitado && padronStatus === "found" && !isEditMode && <Check className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
                     </div>
                     {errors.dpi && !yaRegistrado && <p className="text-[10px] text-red-500">{errors.dpi.message}</p>}
@@ -1065,10 +1076,7 @@ export default function AfiliadosForm({
               />
 
               <div className="flex justify-between items-center pt-4 border-t mt-2">
-                {step === 2 &&
-                  !isEditMode &&
-                  !isFirstMember &&
-                  padronHabilitado && (
+                {step === 2 && !isEditMode && padronHabilitado && (
                     <Button
                       type="button"
                       variant="ghost"

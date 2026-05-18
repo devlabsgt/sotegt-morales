@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import type { Afiliado, Lider } from "./esquemas";
 import Tabla from "./Tabla";
@@ -8,10 +8,12 @@ import EstadisticasTabs from "./estadisticas/EstadisticasTabs";
 import TextoAnimado from "@/components/ui/Typeanimation";
 import Image from "next/image";
 import { Dialog, TransitionChild, DialogPanel } from "@headlessui/react";
-import { Users, BarChart3, X, UserPlus, Search, Loader2, Heart } from "lucide-react";
+import { Users, BarChart3, X, UserPlus, Search, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { obtenerAfiliadosAction } from "./actions/afiliados";
 import { obtenerConfiguracionAction } from "../dashboard/actions/configuracion";
+import { construirAfiliadosCelulaDemo } from "./demo/lideresDemoData";
+import { Switch } from "@/components/ui/Switch";
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +23,9 @@ interface Props {
   onAnadirAfiliado: (liderId: string, isFirstMember?: boolean, familiarDeId?: string) => void;
   onDataChange: () => void;
   rolUsuarioSesion: string;
+  mostrarSimular?: boolean;
+  simularActivo?: boolean;
+  onSimularChange?: (value: boolean) => void;
 }
 
 type Vista = "miembros" | "estadisticas";
@@ -33,15 +38,34 @@ export default function Celula({
   onAnadirAfiliado,
   onDataChange,
   rolUsuarioSesion,
+  mostrarSimular = false,
+  simularActivo = false,
+  onSimularChange,
 }: Props) {
   const [vistaActual, setVistaActual] = useState<Vista>("miembros");
   const [busqueda, setBusqueda] = useState("");
 
+  const datosAfiliadosSimulados =
+    mostrarSimular &&
+    simularActivo &&
+    !!lider?.id?.startsWith("demo-");
+
   const { data: afiliadosDelLider = [], isLoading } = useQuery({
     queryKey: ["afiliados-lider", lider?.id],
     queryFn: () => obtenerAfiliadosAction(lider?.id),
-    enabled: isOpen && !!lider?.id,
+    enabled: isOpen && !!lider?.id && !datosAfiliadosSimulados,
   });
+
+  const afiliadosSimulados = useMemo(
+    () => (lider ? construirAfiliadosCelulaDemo(lider) : []),
+    [lider],
+  );
+
+  const afiliadosEfectivos = datosAfiliadosSimulados
+    ? afiliadosSimulados
+    : afiliadosDelLider;
+
+  const cargandoAfiliados = !datosAfiliadosSimulados && isLoading;
 
   const { data: config } = useQuery({
     queryKey: ["config_sistema"],
@@ -51,9 +75,9 @@ export default function Celula({
   if (!lider) return null;
 
   const liderAfiliado =
-    afiliadosDelLider.find((a: Afiliado) => !!a.es_lider) ??
-    (afiliadosDelLider.length > 0 ? afiliadosDelLider[0] : null);
-  const totalEnGrupo = afiliadosDelLider.filter((a: Afiliado) => !a.familiar_de).length;
+    afiliadosEfectivos.find((a: Afiliado) => !!a.es_lider) ??
+    (afiliadosEfectivos.length > 0 ? afiliadosEfectivos[0] : null);
+  const totalEnGrupo = afiliadosEfectivos.filter((a: Afiliado) => !a.familiar_de).length;
   const objetivo = config?.meta_por_lider || 0;
   const progreso = Math.min((totalEnGrupo / objetivo) * 100, 100);
 
@@ -61,7 +85,7 @@ export default function Celula({
   let colorBarra = "bg-blue-600";
   let gifUrl = "/gif/afiliados/gif1.gif";
 
-  if (totalEnGrupo === 0 && !isLoading) {
+  if (totalEnGrupo === 0 && !cargandoAfiliados) {
     mensaje = `👋 ¡Hola ${lider.nombres}! Inicia tu grupo registrándote a ti mismo.`;
     colorBarra = "bg-gray-300";
   } else if (totalEnGrupo === 1) {
@@ -87,13 +111,13 @@ export default function Celula({
 
   const afiliadosFiltrados =
     busqueda.length >= 2
-      ? afiliadosDelLider.filter(
+      ? afiliadosEfectivos.filter(
         (a: Afiliado) =>
           a.nombres.toLowerCase().includes(busqueda.toLowerCase()) ||
           a.apellidos.toLowerCase().includes(busqueda.toLowerCase()) ||
           a.dpi.includes(busqueda),
       )
-      : afiliadosDelLider;
+      : afiliadosEfectivos;
 
   const TABS = [
     { id: "miembros", label: "Miembros", icon: Users },
@@ -119,14 +143,25 @@ export default function Celula({
           >
             <DialogPanel className="w-screen h-screen bg-white flex flex-col overflow-hidden">
               {/* HEADER */}
-              <div className="flex justify-between items-center px-3 py-2.5 border-b shrink-0 bg-white sticky top-0 z-20">
+              <div className="flex justify-between items-center gap-2 px-3 py-2.5 border-b shrink-0 bg-white sticky top-0 z-20">
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex shrink-0 items-center justify-center font-black leading-none text-orange-500 text-lg md:text-xl"
+                      aria-hidden
+                    >
+                      Ñ
+                    </span>
                     <h3 className="text-sm md:text-base font-black uppercase truncate text-gray-900 leading-tight">
                       {lider.nombres} {lider.apellidos}
                     </h3>
-                    {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />}
+                    {cargandoAfiliados && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />}
                   </div>
+                  {datosAfiliadosSimulados && (
+                    <p className="text-[10px] font-bold text-sky-600 uppercase mt-0.5">
+                      Vista simulada
+                    </p>
+                  )}
                   {liderAfiliado?.created_at && (
                     <p className="text-[10px] text-gray-400 font-medium leading-tight mt-0.5">
                       Afiliado el{" "}
@@ -139,12 +174,25 @@ export default function Celula({
                   )}
                 </div>
 
-                <button
-                  onClick={onClose}
-                  className="text-blue-600 font-bold hover:underline text-sm uppercase px-4 py-2 shrink-0"
-                >
-                  Cerrar
-                </button>
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                  {mostrarSimular && onSimularChange && (
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <span className="text-[10px] font-black uppercase text-gray-600 hidden sm:inline">
+                        Simular
+                      </span>
+                      <Switch
+                        checked={simularActivo}
+                        onCheckedChange={onSimularChange}
+                      />
+                    </label>
+                  )}
+                  <button
+                    onClick={onClose}
+                    className="text-blue-600 font-bold hover:underline text-sm uppercase px-2 sm:px-4 py-2 shrink-0"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
 
               <div className="px-2 py-2 border-b bg-gray-50 flex justify-center">
@@ -168,7 +216,7 @@ export default function Celula({
               {/* CONTENIDO */}
               <div className="flex-1 overflow-y-auto px-2">
                 <div className="w-full">
-                  {isLoading ? (
+                  {cargandoAfiliados ? (
                     <div className="flex flex-col items-center justify-center h-64 gap-4">
                       <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
                       <p className="text-sm font-bold text-gray-500 uppercase">Consultando Miembros de Célula...</p>
@@ -232,6 +280,7 @@ export default function Celula({
                             onChange={(e) => setBusqueda(e.target.value)}
                           />
                         </div>
+                        {!datosAfiliadosSimulados && (
                         <Button
                           className={`font-bold h-12 px-6 shadow-md transition-transform hover:scale-105 w-full md:w-auto uppercase text-xs ${totalEnGrupo === 0
                               ? "bg-green-600 animate-pulse"
@@ -243,8 +292,13 @@ export default function Celula({
                         >
                           {totalEnGrupo === 0 ? (
                             <>
-                              <UserPlus className="w-5 h-5 mr-2" /> Registrarme
-                              como Líder
+                              <span
+                                className="mr-2 font-black text-lg leading-none text-white"
+                                aria-hidden
+                              >
+                                Ñ
+                              </span>
+                              Registrarme como Líder
                             </>
                           ) : (
                             <>
@@ -253,6 +307,7 @@ export default function Celula({
                             </>
                           )}
                         </Button>
+                        )}
                       </div>
 
                       <Tabla
@@ -264,11 +319,12 @@ export default function Celula({
                         rolUsuarioSesion={rolUsuarioSesion}
                         config={config}
                         totalEnCelula={totalEnGrupo}
+                        soloLecturaSimulacion={datosAfiliadosSimulados}
                       />
                     </>
                   ) : (
                     <div className="w-full pt-4">
-                      <EstadisticasTabs afiliados={afiliadosDelLider} />
+                      <EstadisticasTabs afiliados={afiliadosEfectivos} />
                     </div>
                   )}
                 </div>

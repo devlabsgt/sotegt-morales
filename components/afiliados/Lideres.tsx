@@ -18,6 +18,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { eliminar } from "./acciones";
 import { obtenerConteoPadronAction } from "./actions/afiliados";
+import { LIDERES_DEMO } from "./demo/lideresDemoData";
+import { Switch } from "@/components/ui/Switch";
 import Swal from "sweetalert2";
 
 export interface Lider {
@@ -43,6 +45,12 @@ interface Props {
   isLoading?: boolean;
   hideMeta?: boolean;
   showRole?: boolean;
+  /** Solo ADMIN / SUPER: muestra el switch (el padre controla el estado). */
+  mostrarSimular?: boolean;
+  simularActivo?: boolean;
+  onSimularChange?: (value: boolean) => void;
+  /** Sustituye la lista por datos demo (p. ej. pestaña Líderes con simular encendido). */
+  aplicarDatosDemo?: boolean;
 }
 
 function LideresSkeleton({ esAdminOSuper }: { esAdminOSuper: boolean }) {
@@ -76,6 +84,10 @@ export default function Lideres({
   isLoading = false,
   hideMeta = false,
   showRole = false,
+  mostrarSimular = false,
+  simularActivo = false,
+  onSimularChange,
+  aplicarDatosDemo = false,
 }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number | "all">(10);
@@ -84,6 +96,12 @@ export default function Lideres({
   const isLider = rolUsuarioSesion === "LIDER";
   const esAdminOSuper =
     rolUsuarioSesion === "ADMINISTRADOR" || rolUsuarioSesion === "SUPER" || rolUsuarioSesion === "ADMIN";
+
+  const lideresEnVista = useMemo(
+    () => (aplicarDatosDemo ? LIDERES_DEMO : lideres),
+    [aplicarDatosDemo, lideres],
+  );
+  const listaEsSimulada = aplicarDatosDemo;
 
   const { data: config } = useQuery({
     queryKey: ["config_sistema"],
@@ -107,20 +125,20 @@ export default function Lideres({
   }, [searchTerm, itemsPerPage]);
 
   const totalAfiliadosGeneral = useMemo(() =>
-    lideres.reduce((acc, curr) => acc + (curr.conteoAfiliados || 0), 0)
-    , [lideres]);
+    lideresEnVista.reduce((acc, curr) => acc + (curr.conteoAfiliados || 0), 0)
+    , [lideresEnVista]);
 
   const progresoGeneral = useMemo(() =>
     OBJETIVO_GENERAL > 0 ? Math.min((totalAfiliadosGeneral / OBJETIVO_GENERAL) * 100, 100) : 0
     , [totalAfiliadosGeneral, OBJETIVO_GENERAL]);
 
   const sortedLideres = useMemo(() =>
-    [...lideres].sort((a, b) => {
+    [...lideresEnVista].sort((a, b) => {
       if (a.id === idUsuarioSesion) return -1;
       if (b.id === idUsuarioSesion) return 1;
       return (b.conteoAfiliados || 0) - (a.conteoAfiliados || 0);
     })
-    , [lideres, idUsuarioSesion]);
+    , [lideresEnVista, idUsuarioSesion]);
 
   const filteredLideres = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -191,10 +209,24 @@ export default function Lideres({
         </div>
       )}
 
-      <div className="flex justify-start mb-2 px-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-2 px-2">
         <span className="text-sm md:text-xl font-black text-blue-800 uppercase tracking-tight">
-          Líderes registrados: <span className="text-blue-600">{lideres.length}</span>
+          Líderes registrados:{" "}
+          <span className="text-blue-600">{lideresEnVista.length}</span>
+          {listaEsSimulada && (
+            <span className="text-sky-600 font-bold normal-case text-xs md:text-sm ml-2">
+              (simulado)
+            </span>
+          )}
         </span>
+        {mostrarSimular && onSimularChange && (
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            <span className="text-xs font-black uppercase text-gray-600">
+              Simular
+            </span>
+            <Switch checked={simularActivo} onCheckedChange={onSimularChange} />
+          </label>
+        )}
       </div>
 
       {/* Lista de Tarjetas en una sola columna */}
@@ -279,7 +311,7 @@ export default function Lideres({
               </div>
 
               {/* Botones de Acción - Siempre a la Derecha en Desktop */}
-              {rolUsuarioSesion !== "LIDER" && (
+              {rolUsuarioSesion !== "LIDER" && !listaEsSimulada && (
                 <div className="hidden md:flex items-center gap-2 px-4 py-2 border-l border-gray-100 bg-gray-50/30">
 
 
@@ -320,7 +352,7 @@ export default function Lideres({
 
               {/* Acordeón Móvil */}
               <AnimatePresence>
-                {liderAbiertoId === lider.id && rolUsuarioSesion !== "LIDER" && (
+                {liderAbiertoId === lider.id && rolUsuarioSesion !== "LIDER" && !listaEsSimulada && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}

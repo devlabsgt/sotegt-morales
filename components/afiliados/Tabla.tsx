@@ -36,6 +36,8 @@ interface Props {
   config?: any;
   totalEnCelula?: number;
   isFamilyView?: boolean;
+  /** Sin acciones destructivas ni edición (vista simulada). */
+  soloLecturaSimulacion?: boolean;
 }
 
 export default function Tabla({
@@ -48,8 +50,9 @@ export default function Tabla({
   config,
   totalEnCelula,
   isFamilyView = false,
+  soloLecturaSimulacion = false,
 }: Props) {
-  const puedeVerAcciones = true;
+  const puedeVerAcciones = !soloLecturaSimulacion;
   const totalAfiliados = totalEnCelula ?? afiliados.length;
 
   const [gestionDpiAfiliado, setGestionDpiAfiliado] = useState<Afiliado | null>(null);
@@ -214,7 +217,14 @@ export default function Tabla({
               {esLider && (
                 <div className="absolute -top-2.5 left-3 z-10">
                   <span className="flex items-center gap-1 bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase shadow-sm">
-                    <Crown className="w-2.5 h-2.5" /> Líder
+                    {soloLecturaSimulacion ? (
+                      <span className="font-black leading-none text-[11px]" aria-hidden>
+                        Ñ
+                      </span>
+                    ) : (
+                      <Crown className="w-2.5 h-2.5 shrink-0" aria-hidden />
+                    )}
+                    Líder
                   </span>
                 </div>
               )}
@@ -456,7 +466,7 @@ export default function Tabla({
                     {titularVerFamilia && (
                       <div className="space-y-4">
                         <div className="flex justify-end">
-                          {onAnadirFamiliar && (
+                          {onAnadirFamiliar && !soloLecturaSimulacion && (
                             <Button
                               onClick={() => onAnadirFamiliar(titularVerFamilia.id)}
                               className="bg-purple-600 hover:bg-purple-700 text-white gap-2 font-bold"
@@ -479,6 +489,7 @@ export default function Tabla({
                           config={config}
                           totalEnCelula={totalEnCelula}
                           isFamilyView={true}
+                          soloLecturaSimulacion={soloLecturaSimulacion}
                         />
                       </div>
                     )}

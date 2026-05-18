@@ -12,7 +12,6 @@ import {
   Users,
   ClipboardList,
   Shield,
-  Crown,
   FileSpreadsheet,
 } from "lucide-react";
 
@@ -138,6 +137,7 @@ export default function Ver() {
 
   const [isFirstMemberAddition, setIsFirstMemberAddition] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [simularVista, setSimularVista] = useState(false);
 
   // TanStack Query: los Server Actions aparecen como POST en DevTools; aquí evitamos refetch al cambiar de pestaña.
   const { data: afiliados = [] } = useQuery({
@@ -162,10 +162,10 @@ export default function Ver() {
   const padronHabilitado = configSis?.padron === true;
 
   useEffect(() => {
-    if (!puedeVerReportesLideres && isReporteLideresOpen) {
-      setIsReporteLideresOpen(false);
+    if (!puedeVerReportesLideres && simularVista) {
+      setSimularVista(false);
     }
-  }, [puedeVerReportesLideres, isReporteLideresOpen]);
+  }, [puedeVerReportesLideres, simularVista]);
 
   const invalidateAfiliadosRelatedQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["afiliados-lider"] });
@@ -273,7 +273,7 @@ export default function Ver() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
           <div className="flex items-center gap-4 w-full md:w-auto">
             <h1 className="text-2xl font-bold text-black md:text-3xl whitespace-nowrap flex items-center gap-2">
-              Gestión de Datos <BarChart3 className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
+              Gestión de Datos <BarChart3 className="w-6 h-6 md:w-8 md:h-8 text-sky-600" />
             </h1>
           </div>
           <div className="relative w-full md:w-96">
@@ -283,7 +283,7 @@ export default function Ver() {
             <input
               type="text"
               placeholder="Buscar por nombre"
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-sky-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -329,11 +329,19 @@ export default function Ver() {
           <button
             onClick={() => setActiveTab("Lideres")}
             className={`px-4 py-3 text-sm md:text-base font-black uppercase flex items-center gap-2 transition-all ${activeTab === "Lideres"
-              ? "border-b-4 border-orange-500 text-orange-600 bg-orange-50/50"
+              ? "border-b-4 border-sky-500 text-sky-700 bg-sky-50/50"
               : "text-gray-400 hover:text-gray-600 border-b-4 border-transparent"
               }`}
           >
-            <Crown className={`w-4 h-4 md:w-5 md:h-5 ${activeTab === "Lideres" ? "text-orange-500" : ""}`} /> 
+            <span
+              className={`inline-flex min-w-[1.25rem] items-center justify-center font-black leading-none md:min-w-[1.5rem] ${activeTab === "Lideres"
+                ? "text-sky-600"
+                : "text-gray-400"
+                } text-lg md:text-xl`}
+              aria-hidden
+            >
+              Ñ
+            </span>{" "}
             Líderes
           </button>
           
@@ -365,11 +373,11 @@ export default function Ver() {
               <button
                 onClick={() => setActiveTab("Administrativos")}
                 className={`px-4 py-3 text-sm md:text-base font-black uppercase flex items-center gap-2 transition-all ${activeTab === "Administrativos"
-                  ? "border-b-4 border-blue-600 text-blue-700 bg-blue-50/50"
+                  ? "border-b-4 border-sky-500 text-sky-700 bg-sky-50/50"
                   : "text-gray-400 hover:text-gray-600 border-b-4 border-transparent"
                   }`}
               >
-                <Shield className={`w-4 h-4 md:w-5 md:h-5 ${activeTab === "Administrativos" ? "text-blue-600" : ""}`} /> 
+                <Shield className={`w-4 h-4 md:w-5 md:h-5 ${activeTab === "Administrativos" ? "text-sky-600" : ""}`} /> 
                 Administrativos
               </button>
             </>
@@ -386,6 +394,10 @@ export default function Ver() {
             searchTerm={searchTerm}
             idUsuarioSesion={userId}
             isLoading={loading}
+            mostrarSimular={puedeVerReportesLideres}
+            simularActivo={simularVista}
+            onSimularChange={setSimularVista}
+            aplicarDatosDemo={puedeVerReportesLideres && simularVista}
           />
         )}
         {activeTab === "Afiliados" && (
@@ -410,6 +422,10 @@ export default function Ver() {
             isLoading={loading}
             hideMeta
             showRole={true}
+            mostrarSimular={puedeVerReportesLideres}
+            simularActivo={simularVista}
+            onSimularChange={setSimularVista}
+            aplicarDatosDemo={false}
           />
         )}
       </div>
@@ -426,7 +442,7 @@ export default function Ver() {
               <div className="flex justify-between items-center px-6 py-3 border-b shrink-0 bg-white z-10">
                 <div className="flex flex-col">
                   <h3 className="text-base md:text-xl font-bold uppercase flex items-center gap-2">
-                    Estadísticas Generales <BarChart3 className="w-5 h-5 text-blue-600" />
+                    Estadísticas Generales <BarChart3 className="w-5 h-5 text-sky-600" />
                   </h3>
                   <p className="text-[9px] text-gray-500 font-bold uppercase mt-1">
                     Análisis global de {afiliados.length} registros
@@ -471,7 +487,7 @@ export default function Ver() {
         <div className="fixed inset-0 flex items-center justify-center p-0 sm:p-4">
           <DialogPanel className="mx-auto w-full md:w-[70vw] max-w-none bg-white rounded-none sm:rounded-3xl shadow-2xl overflow-hidden h-full sm:h-[95vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-              <h2 className="text-2xl font-black text-blue-900 flex items-center gap-2">
+              <h2 className="text-2xl font-black text-sky-900 flex items-center gap-2">
                 <Settings className="h-6 w-6" /> Configuración del Sistema
               </h2>
               <button
@@ -497,6 +513,9 @@ export default function Ver() {
         onAnadirAfiliado={handleOpenAnadirAfiliadoModal}
         onDataChange={refreshAfterDeletion}
         rolUsuarioSesion={rol ?? ""}
+        mostrarSimular={puedeVerReportesLideres}
+        simularActivo={simularVista}
+        onSimularChange={setSimularVista}
       />
 
       <Form
