@@ -10,6 +10,8 @@ export interface Lider {
   conteoAfiliados?: number;
   conteoTitulares?: number;
   conteoFamiliares?: number;
+  /** Opcional: si viene del API; el reporte también lo infiere vía afiliados */
+  telefono?: string;
 }
 
 export const POLITICAS = [

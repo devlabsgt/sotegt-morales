@@ -153,9 +153,81 @@ type AfiliadoResumenCondicion = {
   nombres: string;
   apellidos: string;
   dpi: string;
+  /** Primer número con valor (telefono, telefono2 o telefono3) */
+  telefono: string | null;
   condicionLabel: string;
   familiar_de?: string | null;
 };
+
+function primerTelefonoAfiliado(
+  a: Pick<Afiliado, "telefono" | "telefono2" | "telefono3">,
+): string | null {
+  for (const t of [a.telefono, a.telefono2, a.telefono3]) {
+    const s = String(t ?? "").trim();
+    if (s.length > 0) return s;
+  }
+  return null;
+}
+
+/** WhatsApp: Guatemala +502; en formulario se guardan 8 dígitos locales */
+function whatsappUrlGuatemala(
+  telefono: string | null | undefined,
+): string | null {
+  const d = String(telefono ?? "").replace(/\D/g, "");
+  if (d.length === 8) return `https://wa.me/502${d}`;
+  if (d.length >= 11 && d.startsWith("502"))
+    return `https://wa.me/${d.slice(0, 11)}`;
+  return null;
+}
+
+/** Texto visible (sin +502); enlace WA sigue usando 502 en la URL */
+function etiquetaTelefonoMostrar(telefono: string): string {
+  const d = telefono.replace(/\D/g, "");
+  if (d.length === 8) return `${d.slice(0, 4)} ${d.slice(4)}`;
+  if (d.length >= 11 && d.startsWith("502")) {
+    const local = d.slice(3, 11);
+    if (local.length === 8) return `${local.slice(0, 4)} ${local.slice(4)}`;
+  }
+  return telefono.trim();
+}
+
+function telefonoLiderDemoDesdeId(id: string): string | null {
+  if (!id.startsWith("demo-")) return null;
+  const n = Number.parseInt(id.replace(/^demo-/, ""), 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return String(51000000 + n * 9973).padStart(8, "0").slice(-8);
+}
+
+function CeldaTelefonoWaGt({
+  nombreCompleto,
+  telefono,
+}: {
+  nombreCompleto: string;
+  telefono: string | null | undefined;
+}) {
+  const telRaw = telefono?.trim() ?? "";
+  const wa = telRaw.length > 0 ? whatsappUrlGuatemala(telRaw) : null;
+  if (!telRaw) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+  if (wa) {
+    return (
+      <a
+        href={wa}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[13px] font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-800"
+        aria-label={`WhatsApp ${nombreCompleto}`}
+      >
+        {etiquetaTelefonoMostrar(telRaw)}
+      </a>
+    );
+  }
+
+  return (
+    <span className="text-xs font-mono text-slate-600">{telRaw}</span>
+  );
+}
 
 function textoCondicionEspecial(
   raw: string | null | undefined,
@@ -164,16 +236,78 @@ function textoCondicionEspecial(
   return t.length > 0 ? t : null;
 }
 
+/** Nombres simulados para vista demo del reporte (condición especial) */
+const NOMBRES_DEMO_CONDICION_GT = [
+  "María",
+  "José Luis",
+  "Ana Lucía",
+  "Carlos",
+  "Rosa Marina",
+  "Miguel Ángel",
+  "Gabriela",
+  "Jorge Alberto",
+  "Sofía",
+  "Óscar René",
+  "Patricia",
+  "Fernando",
+  "Lucía",
+  "Marco Antonio",
+  "Andrea",
+  "Diego",
+  "Claudia Maribel",
+  "Ricardo",
+  "Vilma",
+  "Héctor",
+  "Gladys",
+  "Byron",
+  "Silvia",
+  "Edvin",
+  "Marta",
+] as const;
+
+const APELLIDOS_DEMO_CONDICION_GT = [
+  "López García",
+  "Morales Castillo",
+  "Hernández Ruiz",
+  "Reyes Paiz",
+  "González Estrada",
+  "Pérez Contreras",
+  "Aguilar Toledo",
+  "Flores Morales",
+  "Ixquiac Toc",
+  "Tzul Coy",
+  "Xiloj Cholom",
+  "Maas Mijangos",
+  "Coy Sum",
+  "Batz Ixcot",
+  "Pop Chuc",
+  "Santos Grijalva",
+  "Ramírez de León",
+  "Arévalo Montes",
+  "Maldonado Juárez",
+  "Figueroa Rivas",
+  "Díaz Velásquez",
+  "Orellana Lara",
+  "Altán Lemus",
+  "Barrios Méndez",
+  "Chávez Ovalle",
+] as const;
+
 function construirAfiliadosCondicionDemo(): AfiliadoResumenCondicion[] {
   const out: AfiliadoResumenCondicion[] = [];
   CONDICION_ESPECIAL_OPCIONES.forEach((condicionLabel, gi) => {
     const n = 2 + (gi % 3);
     for (let j = 0; j < n; j += 1) {
+      const ni =
+        (gi * 7 + j * 3) % NOMBRES_DEMO_CONDICION_GT.length;
+      const ai =
+        (gi * 5 + j * 11) % APELLIDOS_DEMO_CONDICION_GT.length;
       out.push({
         id: `demo-cond-${gi}-${j}`,
-        nombres: "Persona",
-        apellidos: `Ejemplo ${gi + 1}-${j + 1}`,
+        nombres: NOMBRES_DEMO_CONDICION_GT[ni],
+        apellidos: APELLIDOS_DEMO_CONDICION_GT[ai],
         dpi: `${1590000000000 + gi * 100 + j}`.slice(0, 13),
+        telefono: String(51000000 + gi * 1000 + j * 113).padStart(8, "0"),
         condicionLabel,
         familiar_de: j > 0 ? `demo-cond-${gi}-0` : null,
       });
@@ -650,6 +784,34 @@ export default function ReporteLideresClasificacion({
     [simulacionDatosActivada, lideres],
   );
 
+  const telefonoPorLiderId = useMemo(() => {
+    const m = new Map<string, string | null>();
+    const byLider = new Map<string, Afiliado[]>();
+    for (const a of afiliados) {
+      const lid = a.lider_id;
+      if (!lid) continue;
+      const arr = byLider.get(lid) ?? [];
+      arr.push(a);
+      byLider.set(lid, arr);
+    }
+    for (const [lid, rows] of byLider) {
+      const liderRow =
+        rows.find((r) => r.es_lider) ??
+        rows.find((r) => !r.familiar_de);
+      m.set(lid, liderRow ? primerTelefonoAfiliado(liderRow) : null);
+    }
+    return m;
+  }, [afiliados]);
+
+  const telefonoDeLider = (l: Lider): string | undefined => {
+    const t =
+      telefonoPorLiderId.get(l.id) ??
+      l.telefono ??
+      telefonoLiderDemoDesdeId(l.id);
+    const s = t == null ? "" : String(t).trim();
+    return s === "" ? undefined : s;
+  };
+
   const ordenados = useMemo(() => {
     return [...datosEfectivos].sort((a, b) => {
       const d =
@@ -962,6 +1124,7 @@ export default function ReporteLideresClasificacion({
         nombres: a.nombres,
         apellidos: a.apellidos,
         dpi: a.dpi,
+        telefono: primerTelefonoAfiliado(a),
         condicionLabel: label,
         familiar_de: a.familiar_de ?? null,
       });
@@ -1156,6 +1319,42 @@ export default function ReporteLideresClasificacion({
     descargarExcelAoA({
       nombreArchivoBase: "territorio-solo-distrito",
       nombreHoja: "Solo distrito",
+      filas,
+    });
+  };
+
+  const descargarExcelCondicionEspecial = (): void => {
+    const filas: (string | number)[][] = [
+      [
+        "#",
+        "Condición",
+        "Nombres",
+        "Apellidos",
+        "DPI",
+        "Teléfono",
+        "Vínculo",
+      ],
+    ];
+    let n = 0;
+    for (const g of gruposCondicionEspecial) {
+      for (const p of g.personas) {
+        n += 1;
+        const esFamiliar =
+          !!p.familiar_de && String(p.familiar_de).trim() !== "";
+        filas.push([
+          n,
+          g.condicionLabel,
+          p.nombres,
+          p.apellidos,
+          p.dpi,
+          (p.telefono ?? "").trim(),
+          esFamiliar ? "Familiar" : "Titular",
+        ]);
+      }
+    }
+    descargarExcelAoA({
+      nombreArchivoBase: "condicion-especial-personas",
+      nombreHoja: "Condición especial",
       filas,
     });
   };
@@ -1475,6 +1674,9 @@ export default function ReporteLideresClasificacion({
                                 <th className="px-3 py-3 md:px-4">
                                   Correo (usuario)
                                 </th>
+                                <th className="px-3 py-3 md:px-4">
+                                  Teléfono
+                                </th>
                                 <th className="px-3 py-3 md:px-4">Nivel</th>
                                 <th className="px-3 py-3 text-right md:px-4">
                                   Total
@@ -1508,6 +1710,12 @@ export default function ReporteLideresClasificacion({
                                     </td>
                                     <td className="px-3 py-3 text-xs italic text-slate-600 md:px-4">
                                       {row.email}
+                                    </td>
+                                    <td className="px-3 py-3 md:px-4">
+                                      <CeldaTelefonoWaGt
+                                        nombreCompleto={`${row.nombres} ${row.apellidos}`}
+                                        telefono={telefonoDeLider(row)}
+                                      />
                                     </td>
                                     <td className="px-3 py-3 md:px-4">
                                       <span
@@ -1906,6 +2114,9 @@ export default function ReporteLideresClasificacion({
                               <tr className="border-b border-slate-100 bg-slate-50/90 text-left text-[10px] font-black uppercase tracking-wide text-slate-500 md:text-xs">
                                 <th className="px-3 py-3 md:px-4">#</th>
                                 <th className="px-3 py-3 md:px-4">Líder</th>
+                                <th className="px-3 py-3 md:px-4">
+                                  Teléfono
+                                </th>
                                 <th className="px-3 py-3 text-right md:px-4">
                                   Titulares
                                 </th>
@@ -1936,6 +2147,12 @@ export default function ReporteLideresClasificacion({
                                     </td>
                                     <td className="px-3 py-3 font-semibold text-slate-900 md:px-4">
                                       {row.nombres} {row.apellidos}
+                                    </td>
+                                    <td className="px-3 py-3 md:px-4">
+                                      <CeldaTelefonoWaGt
+                                        nombreCompleto={`${row.nombres} ${row.apellidos}`}
+                                        telefono={telefonoDeLider(row)}
+                                      />
                                     </td>
                                     <td className="px-3 py-3 text-right tabular-nums text-slate-800 md:px-4">
                                       {row.conteoTitulares ?? 0}
@@ -2594,9 +2811,25 @@ export default function ReporteLideresClasificacion({
                           </div>
 
                           <div className="flex flex-col gap-4">
-                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">
-                              Listado por condición
-                            </h3>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">
+                                Listado por condición
+                              </h3>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  afiliadosCondicionResumen.length === 0
+                                }
+                                onClick={descargarExcelCondicionEspecial}
+                                className={`h-9 w-full gap-1.5 border-slate-300 text-[10px] font-black uppercase sm:w-auto md:text-xs ${CLASS_BTN_EXCEL}`}
+                                aria-label="Descargar Excel condición especial"
+                              >
+                                <FileSpreadsheet className="h-4 w-4 shrink-0" />
+                                Excel
+                              </Button>
+                            </div>
                             {gruposCondicionEspecial.map((grupo) => (
                               <details
                                 key={grupo.condicionLabel}
@@ -2627,6 +2860,9 @@ export default function ReporteLideresClasificacion({
                                           DPI
                                         </th>
                                         <th className="px-3 py-3 md:px-4">
+                                          Teléfono
+                                        </th>
+                                        <th className="px-3 py-3 md:px-4">
                                           Vínculo
                                         </th>
                                       </tr>
@@ -2649,6 +2885,12 @@ export default function ReporteLideresClasificacion({
                                             </td>
                                             <td className="px-3 py-3 font-mono text-xs text-slate-700 md:px-4">
                                               {p.dpi}
+                                            </td>
+                                            <td className="px-3 py-3 text-slate-700 md:px-4">
+                                              <CeldaTelefonoWaGt
+                                                nombreCompleto={`${p.nombres} ${p.apellidos}`}
+                                                telefono={p.telefono}
+                                              />
                                             </td>
                                             <td className="px-3 py-3 md:px-4">
                                               <span
