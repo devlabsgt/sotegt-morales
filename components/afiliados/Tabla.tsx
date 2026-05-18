@@ -204,11 +204,11 @@ export default function Tabla({
             <div
               key={afiliado.id}
               onClick={() => toggleExpand(afiliado.id)}
-              className={`group relative bg-white border rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex flex-col cursor-pointer overflow-hidden ${esLider
-                  ? "border-orange-200 ring-1 ring-orange-100"
+              className={`group relative bg-white border rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex flex-col cursor-pointer ${esLider
+                  ? "overflow-visible border-orange-200 ring-1 ring-orange-100"
                   : esFamiliar
-                    ? "border-purple-100"
-                    : "border-gray-100"
+                    ? "overflow-hidden border-purple-100"
+                    : "overflow-hidden border-gray-100"
                 } ${depth > 0 ? "ml-8 md:ml-12 border-l-4 border-l-purple-400" : ""} ${expandedId === afiliado.id ? "ring-2 ring-blue-500/20 border-blue-200" : ""}`}
             >
               {esLider && (

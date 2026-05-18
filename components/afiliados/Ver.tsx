@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Shield,
   Crown,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import EstadisticasTabs from "./estadisticas/EstadisticasTabs";
@@ -35,6 +36,7 @@ import {
 import { obtenerAfiliadosAction } from "./actions/afiliados";
 import { obtenerConfiguracionAction } from "@/components/dashboard/actions/configuracion";
 import { loadAfiliacionVerDashboardAction } from "./actions/afiliacion-ver-dashboard";
+import ReporteLideresClasificacion from "./reportes/ReporteLideresClasificacion";
 
 type Lugar = { id: number; nombre: string; sector_id: number | null; sector_nombre: string | null };
 type Tab = "Lideres" | "Afiliados" | "Padron" | "Administrativos";
@@ -65,6 +67,7 @@ export default function Ver() {
   const rol = dashboard?.session.rol ?? "";
   const userId = dashboard?.session.id ?? "";
   const esAdminOSuper = rol === "ADMINISTRADOR" || rol === "SUPER" || rol === "ADMIN";
+  const puedeVerReportesLideres = rol === "ADMIN" || rol === "SUPER";
 
   const { lideres, administrativos, lugares } = useMemo(() => {
     if (!dashboard) {
@@ -119,6 +122,7 @@ export default function Ver() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCelulaOpen, setIsCelulaOpen] = useState(false);
   const [isEstadisticasOpen, setIsEstadisticasOpen] = useState(false);
+  const [isReporteLideresOpen, setIsReporteLideresOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
@@ -139,7 +143,10 @@ export default function Ver() {
   const { data: afiliados = [] } = useQuery({
     queryKey: ["afiliados-gl"],
     queryFn: () => obtenerAfiliadosAction(),
-    enabled: isEstadisticasOpen || activeTab === "Afiliados",
+    enabled:
+      isEstadisticasOpen ||
+      activeTab === "Afiliados" ||
+      (isReporteLideresOpen && puedeVerReportesLideres),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: false,
@@ -153,6 +160,12 @@ export default function Ver() {
   });
 
   const padronHabilitado = configSis?.padron === true;
+
+  useEffect(() => {
+    if (!puedeVerReportesLideres && isReporteLideresOpen) {
+      setIsReporteLideresOpen(false);
+    }
+  }, [puedeVerReportesLideres, isReporteLideresOpen]);
 
   const invalidateAfiliadosRelatedQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["afiliados-lider"] });
@@ -283,6 +296,15 @@ export default function Ver() {
             >
               <BarChart3 className="w-4 h-4 md:w-6 md:h-6" /> Estadísticas Generales
             </Button>
+            {puedeVerReportesLideres && (
+              <Button
+                onClick={() => setIsReporteLideresOpen(true)}
+                variant="outline"
+                className="gap-2 w-full text-xs md:text-xl font-bold"
+              >
+                <FileSpreadsheet className="w-4 h-4 md:w-6 md:h-6" /> Reportes líderes
+              </Button>
+            )}
             {esAdminOSuper && (
               <Button
                 onClick={() => setIsConfigOpen(true)}
@@ -429,6 +451,16 @@ export default function Ver() {
           </div>
         </Dialog>
       </Transition>
+
+      {puedeVerReportesLideres && (
+        <ReporteLideresClasificacion
+          open={isReporteLideresOpen}
+          onClose={() => setIsReporteLideresOpen(false)}
+          lideres={lideres}
+          afiliados={afiliados}
+          mostrarOpcionSimular={puedeVerReportesLideres}
+        />
+      )}
 
       <Dialog
         open={isConfigOpen}

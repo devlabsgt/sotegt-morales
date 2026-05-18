@@ -32,3 +32,25 @@ export async function obtenerPadronAction(
     totalCount: count || 0,
   };
 }
+
+/** Todas las filas que aplican al mismo filtro de búsqueda (paginado en servidor). */
+export async function obtenerPadronTodoParaExportAction(
+  searchTerm: string = "",
+) {
+  const pageSize = 2000;
+  let page = 1;
+  const rows: NonNullable<Awaited<ReturnType<typeof obtenerPadronAction>>["data"]> =
+    [];
+  let totalCount = 0;
+
+  while (true) {
+    const chunk = await obtenerPadronAction(page, pageSize, searchTerm);
+    totalCount = chunk.totalCount;
+    const data = chunk.data || [];
+    rows.push(...data);
+    if (rows.length >= totalCount || data.length === 0) break;
+    page += 1;
+  }
+
+  return { rows, totalCount };
+}
