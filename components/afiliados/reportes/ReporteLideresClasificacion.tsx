@@ -14,7 +14,6 @@ import {
   PieChart as PieChartIcon,
   ChevronLeft,
   ChevronRight,
-  Crown,
   UsersRound,
   MapPin,
   ChevronDown,
@@ -1213,7 +1212,12 @@ export default function ReporteLideresClasificacion({
                         : "border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
-                    <Crown className="h-4 w-4 shrink-0" aria-hidden />
+                    <span
+                      className="inline-flex min-w-[1rem] items-center justify-center font-black leading-none md:min-w-[1.25rem] text-base md:text-lg shrink-0"
+                      aria-hidden
+                    >
+                      Ñ
+                    </span>
                     Líderes
                   </button>
                   <button
